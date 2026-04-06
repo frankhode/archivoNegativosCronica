@@ -1,0 +1,37 @@
+# Maven / build
+target/
+build/
+dist/
+out/
+
+# NetBeans
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# Java compilado / empaquetado
+*.class
+*.jar
+*.war
+*.ear
+
+# Logs y temporales
+*.log
+*.tmp
+*.temp
+
+# Sistema
+Thumbs.db
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+
+# Python embebido o binarios, si existieran en la raiz o subcarpetas versionables
+python/
+*.dll
+*.exe
+*.pyd
+*.lib
