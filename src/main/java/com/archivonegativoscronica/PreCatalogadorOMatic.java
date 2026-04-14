@@ -29,6 +29,8 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import java.text.Normalizer;
+import java.util.Locale;
 
 class PreCatalogadorOMatic {
 
@@ -503,8 +505,33 @@ class PreCatalogadorOMatic {
     public List<String> obtenerRegistrosDeLaBaseDeDatos(String busqueda) {
         String b = busqueda == null ? "" : busqueda.trim();
         if (b.isEmpty()) return new ArrayList<>();
-        String consulta = "SELECT titulo245 FROM registros WHERE titulo245 LIKE '%" + sqlEscape(b) + "%';";
-        return cron.consultaSimple(consulta, 1);
+
+        String buscadoNormalizado = normalizarParaBuscar(b);
+
+        List<String> todos = cron.consultaSimple(
+                "SELECT titulo245 FROM registros WHERE titulo245 IS NOT NULL AND titulo245 <> '';",
+                1
+        );
+
+        List<String> filtrados = new ArrayList<>();
+        for (String titulo : todos) {
+            if (normalizarParaBuscar(titulo).contains(buscadoNormalizado)) {
+                filtrados.add(titulo);
+            }
+        }
+
+        return filtrados;
+    }
+    
+    private static String normalizarParaBuscar(String s) {
+        if (s == null) return "";
+
+        return Normalizer.normalize(s, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")            // quita acentos
+                .toLowerCase(Locale.ROOT)             // minúsculas
+                .replaceAll("[\\p{P}\\p{S}]+", " ")   // quita puntuación y símbolos
+                .replaceAll("\\s+", " ")              // compacta espacios
+                .trim();
     }
 
     // =========================================================
