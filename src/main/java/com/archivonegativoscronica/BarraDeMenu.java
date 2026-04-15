@@ -585,52 +585,58 @@ class BarraDeMenu {
                 Logger.getLogger(BarraDeMenu.class.getName()).log(Level.SEVERE, null, ex);
             }
         });        
-        //Precatalogador-O-Matic
-        MenuItem cat2 = new MenuItem("Precatalogador-O-Matic") ;
+        MenuItem cat2 = new MenuItem("PreUnificador-O-Matic");
         cat2.setOnAction((event) -> {
+            try {
+                PreUnificadorOMatic puom = new PreUnificadorOMatic(cron);
+            } catch (IOException ex) {
+                Logger.getLogger(BarraDeMenu.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        });
+
+        MenuItem cat3 = new MenuItem("Precatalogador-O-Matic") ;
+        cat3.setOnAction((event) -> {
             try {
                 PreCatalogadorOMatic precatom = new PreCatalogadorOMatic(cron) ;
             } catch (IOException ex) {
                 Logger.getLogger(BarraDeMenu.class.getName()).log(Level.SEVERE, null, ex);
             }
         });
-        MenuItem cat3 = new MenuItem("Crear registros para Aleph desde txt") ;
-        cat3.setOnAction((event) -> {
-            try {            
+
+        MenuItem cat4 = new MenuItem("Crear registros para Aleph desde txt") ;
+        cat4.setOnAction((event) -> {
+            try {
                 RegistrosParaAleph reg = new RegistrosParaAleph();
             } catch (IOException ex) {
                 Logger.getLogger(BarraDeMenu.class.getName()).log(Level.SEVERE, null, ex);
             }
         });
-        //5e. Crear registros para Aleph desde inventario
-        MenuItem cat4 = new MenuItem("Crear registros para Aleph desde inventario") ;
-        cat4.setOnAction((event) -> {
-            try {            
+
+        MenuItem cat5 = new MenuItem("Crear registros para Aleph desde inventario") ;
+        cat5.setOnAction((event) -> {
+            try {
                 ConjuntosParaAleph cpa = new ConjuntosParaAleph(cron) ;
             } catch (IOException ex) {
                 Logger.getLogger(BarraDeMenu.class.getName()).log(Level.SEVERE, null, ex);
             }
         });
-        //5g. Catalogar desde fichero
-        MenuItem cat5 = new MenuItem("Catalogar desde el fichero") ;
-        cat5.setOnAction((event) -> {
+
+        MenuItem cat6 = new MenuItem("Catalogar desde el fichero") ;
+        cat6.setOnAction((event) -> {
             FicheroCatalogador fc = new FicheroCatalogador(cron) ;
         });
-        
-        //5h. Indizacion de imagenes
-        MenuItem cat6 = new MenuItem("Indizador-O-Matic") ;
-        cat6.setOnAction((event) -> {
+
+        MenuItem cat7 = new MenuItem("Indizador-O-Matic") ;
+        cat7.setOnAction((event) -> {
             cron.tabPane.getTabs().add(new IndizadorOMatic(cron)) ;
         });
-        
-        //6. Fulbo
-        MenuItem cat7 = new MenuItem("Futboleador-O-Matic") ;
-        cat7.setOnAction((event) -> {
+
+        MenuItem cat8 = new MenuItem("Futboleador-O-Matic") ;
+        cat8.setOnAction((event) -> {
             FutboleadorOMatic fulbo = new FutboleadorOMatic(cron) ;
         });
-        
-        cat.getItems().addAll(cat1,cat2,cat3,cat4,
-                cat5, cat6, cat7) ;
+
+        cat.getItems().addAll(cat1, cat2, cat3, cat4, cat5, cat6, cat7, cat8);
         return cat ;
     }
 
