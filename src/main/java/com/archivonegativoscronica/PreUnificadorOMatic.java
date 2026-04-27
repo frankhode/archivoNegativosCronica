@@ -163,6 +163,129 @@ class PreUnificadorOMatic {
         mostrarPrimeroConSugerencias();
         primaryStage.show();
     }
+    
+    PreUnificadorOMatic(Funciones cron, String filtroWhere) throws IOException {
+        this.cron = cron;
+
+        ConjuntosParaAleph conjuntosParaAleph =
+        new ConjuntosParaAleph(cron, 0, true, true, true, filtroWhere, false);
+
+        regIndi = conjuntosParaAleph.getRegIndi() == null
+                ? new ArrayList<>()
+                : conjuntosParaAleph.getRegIndi();
+
+        Stage primaryStage = new Stage();
+
+        BorderPane root = new BorderPane();
+        root.setPrefWidth(980);
+        root.setPrefHeight(520);
+
+        labelCounter = new Label();
+        labelCounter.setPrefWidth(120);
+        labelCounter.setAlignment(Pos.CENTER);
+        labelCounter.setBackground(new Background(new BackgroundFill(Color.CORAL, null, null)));
+
+        HBox topBar = new HBox();
+        topBar.setPadding(new Insets(10));
+        topBar.setSpacing(10);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Label titulo = new Label("PreUnificador-O-Matic");
+        titulo.setStyle("-fx-font-weight: bold; -fx-font-size: 14;");
+
+        topBar.getChildren().addAll(titulo, spacer, labelCounter);
+        root.setTop(topBar);
+
+        display = new VBox();
+        display.setSpacing(8);
+        display.setPadding(new Insets(12));
+        display.setBackground(new Background(new BackgroundFill(Color.GAINSBORO, null, null)));
+
+        VBox leftPane = new VBox(display);
+        leftPane.setPadding(new Insets(10));
+        leftPane.setPrefWidth(560);
+
+        listView = new ListView<>();
+        listView.setPrefHeight(420);
+        listView.setCellFactory(lv -> new ListCell<SugerenciaUnificacion>() {
+            @Override
+            protected void updateItem(SugerenciaUnificacion item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    setText("[" + item.getNivel() + "] " + item.getTitulo()
+                            + "  |  " + item.getMotivo()
+                            + "  |  SYS: " + item.getSys());
+                }
+            }
+        });
+
+        VBox rightPane = new VBox();
+        rightPane.setPadding(new Insets(10));
+        rightPane.setSpacing(10);
+        rightPane.setPrefWidth(380);
+
+        Label rightTitle = new Label("Sugerencias de unificación");
+        rightTitle.setStyle("-fx-font-weight: bold;");
+        rightPane.getChildren().addAll(rightTitle, listView);
+
+        HBox center = new HBox(leftPane, rightPane);
+        center.setSpacing(10);
+        root.setCenter(center);
+
+        confirmarButton = new Button("Confirmar");
+        descartarButton = new Button("Descartar");
+        anteriorButton = new Button("Anterior");
+        siguienteButton = new Button("Siguiente");
+        cancelarButton = new Button("Cancelar");
+
+        HBox bottomBar = new HBox(confirmarButton, descartarButton, anteriorButton, siguienteButton, cancelarButton);
+        bottomBar.setAlignment(Pos.CENTER);
+        bottomBar.setSpacing(10);
+        bottomBar.setPadding(new Insets(12));
+        root.setBottom(bottomBar);
+
+        confirmarButton.setOnAction(e -> confirmarActual());
+        descartarButton.setOnAction(e -> descartarActual());
+        anteriorButton.setOnAction(e -> irAlAnteriorConSugerencias());
+        siguienteButton.setOnAction(e -> irAlSiguienteConSugerencias());
+        cancelarButton.setOnAction(e -> primaryStage.close());
+
+        Scene scene = new Scene(root);
+
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
+            if (e.getCode() == KeyCode.ESCAPE) {
+                descartarActual();
+                e.consume();
+                return;
+            }
+            if (e.getCode() == KeyCode.PAGE_DOWN) {
+                siguienteButton.fire();
+                e.consume();
+                return;
+            }
+            if (e.getCode() == KeyCode.PAGE_UP) {
+                anteriorButton.fire();
+                e.consume();
+                return;
+            }
+            if (e.isControlDown() && e.getCode() == KeyCode.ENTER) {
+                confirmarButton.fire();
+                e.consume();
+                return;
+            }
+        });
+
+        primaryStage.setTitle("PreUnificador-O-Matic");
+        primaryStage.setScene(scene);
+
+        mostrarPrimeroConSugerencias();
+        primaryStage.show();
+    }
 
     private void mostrarActual() {
         display.getChildren().clear();
@@ -197,6 +320,13 @@ class PreUnificadorOMatic {
 
         labelCounter.setText((numReg + 1) + " / " + regIndi.size());
         actualizarEstadoBotones();
+        Platform.runLater(() -> {
+            TextField tituloField = editors.get(5);
+            if (tituloField != null) {
+                tituloField.requestFocus();
+                tituloField.positionCaret(0);
+            }
+        });
     }
 
     private HBox rowTexto(String label, String value) {
@@ -254,7 +384,7 @@ class PreUnificadorOMatic {
             TextField tituloField = editors.get(5);
             if (tituloField != null) {
                 tituloField.requestFocus();
-                tituloField.positionCaret(tituloField.getText().length());
+                tituloField.positionCaret(0);
             }
         });
     }
@@ -308,7 +438,6 @@ class PreUnificadorOMatic {
 
         numReg = idx;
         mostrarActual();
-        Platform.runLater(() -> listView.requestFocus());
     }
 
     private void descartarActual() {

@@ -635,8 +635,25 @@ class BarraDeMenu {
         cat8.setOnAction((event) -> {
             FutboleadorOMatic fulbo = new FutboleadorOMatic(cron) ;
         });
+        
+        //7. Unificar registros individuales en Aleph
+        MenuItem cat9 = new MenuItem("Unificar registros individuales en Aleph") ;
+        cat9.setOnAction((event) -> {
+            UnificadorRegistrosIndividualesAleph uria =
+                    new UnificadorRegistrosIndividualesAleph(cron);
 
-        cat.getItems().addAll(cat1, cat2, cat3, cat4, cat5, cat6, cat7, cat8);
+            cron.shortCutTab(uria);
+
+            if (!cron.getTabPane().getTabs().contains(uria)) {
+                cron.getTabPane().getTabs().add(uria);
+            }
+
+            cron.getTabPane().getSelectionModel().select(uria);
+        });
+
+        cat.getItems().addAll(cat1,cat2,cat3,cat4,
+                cat5, cat6, cat7, cat8, cat9) ;
+        
         return cat ;
     }
 

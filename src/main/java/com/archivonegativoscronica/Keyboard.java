@@ -1184,4 +1184,59 @@ public class Keyboard {
         directType(KeyEvent.VK_ENTER) ;
     }
     
+    public void cargaCampoSTADeleted() {
+        /*
+         * Agrega:
+         * STA $$aDELETED
+         *
+         * Requiere estar dentro del editor bibliográfico.
+         */
+
+        directType(KeyEvent.VK_F6);
+        getRobot().delay(200);
+
+        type("STA");
+        getRobot().delay(100);
+
+        directType(KeyEvent.VK_RIGHT);
+        directType(KeyEvent.VK_RIGHT);
+        directType(KeyEvent.VK_RIGHT);
+        getRobot().delay(100);
+
+        directType(KeyEvent.VK_F7);
+        type("aDELETED");
+        getRobot().delay(300);
+    }
+
+    public void borraItemActual() {
+        /*
+         * ALEPH - Lista de Items
+         * Requiere que el item ya esté abierto/seleccionado.
+         *
+         * Secuencia:
+         * 1. Click en botón "Borrar"
+         * 2. En popup de confirmación: flecha izquierda para ir a "Sí"
+         * 3. Space para aceptar
+         */
+
+        int xBorrar = 1312;
+        int yBorrar = 218;
+
+        getRobot().delay(300);
+
+        getRobot().mouseMove(xBorrar, yBorrar);
+        getRobot().delay(100);
+        getRobot().mousePress(InputEvent.BUTTON1_DOWN_MASK);
+        getRobot().delay(80);
+        getRobot().mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
+
+        getRobot().delay(500);
+
+        directType(KeyEvent.VK_LEFT);
+        getRobot().delay(150);
+
+        directType(KeyEvent.VK_SPACE);
+        getRobot().delay(800);
+    }
+    
 }

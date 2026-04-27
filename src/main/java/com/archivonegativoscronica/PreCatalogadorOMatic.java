@@ -310,6 +310,246 @@ class PreCatalogadorOMatic {
         // foco inicial en barcode
         Platform.runLater(this::requestFocusFirstField);
     }
+    
+    PreCatalogadorOMatic(Funciones cron, String filtroWhere) throws IOException {
+        Stage primaryStage = new Stage();
+        this.cron = cron;
+        numReg = 0;
+        nroProgr = 0;
+
+        conjuntosParaAleph = new ConjuntosParaAleph(cron, 0, true, true, true, filtroWhere, false);
+        regIndi = conjuntosParaAleph.getRegIndi();
+
+        if (regIndi == null) {
+            regIndi = new ArrayList<>();
+        }
+
+        Collections.sort(regIndi, (a, b) -> safe(a, 5).compareToIgnoreCase(safe(b, 5)));
+
+        regsParaActualizar = new HashMap<>();
+        conjuntoTemp = "";
+
+        BorderPane root = new BorderPane();
+        root.setPrefWidth(980);
+        root.setPrefHeight(520);
+
+        labelCounter = new Label();
+        labelCounter.setPrefWidth(120);
+        labelCounter.setAlignment(Pos.CENTER);
+        labelCounter.setBackground(new Background(new BackgroundFill(Color.CORAL, null, null)));
+
+        HBox topBar = new HBox();
+        topBar.setPadding(new Insets(10));
+        topBar.setSpacing(10);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Label titulo = new Label("PreCatalogador-O-Matic");
+        titulo.setStyle("-fx-font-weight: bold; -fx-font-size: 14;");
+
+        topBar.getChildren().addAll(titulo, spacer, labelCounter);
+        root.setTop(topBar);
+
+        display = new VBox();
+        display.setSpacing(8);
+        display.setPadding(new Insets(12));
+        display.setBackground(new Background(new BackgroundFill(Color.GAINSBORO, null, null)));
+
+        leftPane = new VBox(display);
+        leftPane.setPadding(new Insets(10));
+        leftPane.setPrefWidth(560);
+
+        rightPane = new VBox();
+        rightPane.setPadding(new Insets(10));
+        rightPane.setSpacing(10);
+        rightPane.setPrefWidth(380);
+
+        choiceBox = new ChoiceBox<>();
+        choiceBox.getItems().addAll("", "Conjuntos", "Reg. exist", "Reg. ind.");
+        choiceBox.setPrefWidth(180);
+
+        Label tipoLbl = new Label("Tipo:");
+        HBox tipoRow = new HBox(tipoLbl, choiceBox);
+        tipoRow.setAlignment(Pos.CENTER_LEFT);
+        tipoRow.setSpacing(10);
+
+        VBox rightDynamic = new VBox();
+        rightDynamic.setSpacing(10);
+
+        rightPane.getChildren().addAll(tipoRow, rightDynamic);
+
+        aceptarButton = new Button("Aceptar");
+        guardarCambiosButton = new Button("Guardar cambios");
+        anteriorButton = new Button("Anterior");
+        siguienteButton = new Button("Siguiente");
+        cancelarButton = new Button("Cancelar");
+
+        guardarCambiosButton.setDisable(true);
+
+        bottomBar = new HBox(aceptarButton, guardarCambiosButton, anteriorButton, siguienteButton, cancelarButton);
+        bottomBar.setAlignment(Pos.CENTER);
+        bottomBar.setSpacing(10);
+        bottomBar.setPadding(new Insets(12));
+        root.setBottom(bottomBar);
+
+        HBox center = new HBox(leftPane, rightPane);
+        center.setSpacing(10);
+        root.setCenter(center);
+
+        Scene scene = new Scene(root);
+
+        choiceBox.setOnAction((ActionEvent e) -> {
+            String v = choiceBox.getValue();
+            if (v == null) {
+                v = "";
+            }
+
+            rightDynamic.getChildren().clear();
+            regSearchField = null;
+            listView = null;
+            conjuntos = null;
+
+            switch (v) {
+                case "Conjuntos":
+                    nroProgr = 1;
+                    conjuntos = conjuntos(primaryStage);
+                    rightDynamic.getChildren().add(conjuntos);
+                    break;
+
+                case "Reg. exist":
+                    nroProgr = 2;
+                    Node regUI = regExistentesUI();
+                    rightDynamic.getChildren().add(regUI);
+                    break;
+
+                case "Reg. ind.":
+                    nroProgr = 3;
+                    rightDynamic.getChildren().add(new Label("Se cargará como IND (Ctrl+I en cualquier momento)."));
+                    break;
+
+                default:
+                    nroProgr = 0;
+                    break;
+            }
+
+            rebuildFocusOrder();
+        });
+
+        aceptarButton.setOnAction((ActionEvent event) -> correPrograma(nroProgr));
+        guardarCambiosButton.setOnAction((ActionEvent event) -> guardarCambiosInventario());
+
+        siguienteButton.setOnAction((ActionEvent event) -> {
+            Platform.runLater(() -> {
+                if (regIndi.isEmpty()) {
+                    return;
+                }
+                numReg = Math.min(numReg + 1, regIndi.size() - 1);
+                muestraInventarioEditable();
+                rebuildFocusOrder();
+                requestFocusFirstField();
+            });
+        });
+
+        anteriorButton.setOnAction((ActionEvent event) -> {
+            Platform.runLater(() -> {
+                if (regIndi.isEmpty()) {
+                    return;
+                }
+                numReg = Math.max(numReg - 1, 0);
+                muestraInventarioEditable();
+                rebuildFocusOrder();
+                requestFocusFirstField();
+            });
+        });
+
+        cancelarButton.setOnAction((ActionEvent event) -> primaryStage.close());
+
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
+
+            if (e.getCode() == KeyCode.ESCAPE) {
+                descartarRegistroActual();
+                e.consume();
+                return;
+            }
+
+            if (e.isControlDown() && e.getCode() == KeyCode.C) {
+                choiceBox.getSelectionModel().select("Conjuntos");
+                choiceBox.getOnAction().handle(new ActionEvent());
+                rebuildFocusOrder();
+                e.consume();
+                return;
+            }
+
+            if (e.isControlDown() && e.getCode() == KeyCode.R) {
+                choiceBox.getSelectionModel().select("Reg. exist");
+                choiceBox.getOnAction().handle(new ActionEvent());
+                rebuildFocusOrder();
+
+                Platform.runLater(() -> {
+                    if (regSearchField != null) {
+                        regSearchField.requestFocus();
+                    }
+                });
+
+                e.consume();
+                return;
+            }
+
+            if (e.isControlDown() && e.getCode() == KeyCode.I) {
+                choiceBox.getSelectionModel().select("Reg. ind.");
+                nroProgr = 3;
+                correPrograma(3);
+                e.consume();
+                return;
+            }
+
+            if (e.getCode() == KeyCode.ENTER) {
+                if (isFocusInInventarioFields() && !guardarCambiosButton.isDisabled()) {
+                    guardarCambiosButton.fire();
+                    e.consume();
+                    return;
+                }
+            }
+
+            if (e.isControlDown() && e.getCode() == KeyCode.ENTER) {
+                if (nroProgr == 2) {
+                    aceptarButton.fire();
+                    e.consume();
+                    return;
+                }
+            }
+
+            if (e.getCode() == KeyCode.PAGE_DOWN) {
+                siguienteButton.fire();
+                e.consume();
+            }
+
+            if (e.getCode() == KeyCode.PAGE_UP) {
+                anteriorButton.fire();
+                e.consume();
+            }
+
+            if (e.getCode() == KeyCode.TAB) {
+                if (!focusOrder.isEmpty()) {
+                    boolean backwards = e.isShiftDown();
+                    moveFocus(backwards);
+                    e.consume();
+                }
+            }
+        });
+
+        primaryStage.setTitle("PreCatalogador-O-Matic");
+        primaryStage.setScene(scene);
+
+        muestraInventarioEditable();
+        rebuildFocusOrder();
+
+        primaryStage.show();
+
+        Platform.runLater(this::requestFocusFirstField);
+    }
 
     // =========================================================
     // UI: Inventario editable (izquierda)

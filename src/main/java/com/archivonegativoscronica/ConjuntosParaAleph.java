@@ -138,6 +138,32 @@ class ConjuntosParaAleph {
         
     }
     
+    public ConjuntosParaAleph(Funciones cron, int cantReg,
+        boolean indiv, boolean grupos, boolean precatalog,
+        String filtroWhere, boolean excluirExistentesEnItems) throws IOException {
+
+        String consulta = "SELECT * FROM inventario WHERE barcode "
+                + "NOT IN (SELECT barcode FROM conjuntos)";
+
+        if (excluirExistentesEnItems) {
+            consulta = consulta + " AND barcode NOT IN (SELECT barcode FROM items)";
+        }
+
+        if (filtroWhere != null && !filtroWhere.trim().isEmpty()) {
+            consulta = consulta + " AND (" + filtroWhere + ")";
+        }
+
+        this.cron = cron;
+        uni = new Unificador(cron);
+
+        listaPendientes = cron.consultaCompleta(consulta);
+        regIndi = new ArrayList<>();
+
+        listaPendientes.forEach((t) -> {
+            regIndi.add(t);
+        });
+    }
+    
     //constructor para el catalogador-o-matic
     public ConjuntosParaAleph(Funciones cron, int cantReg,
             boolean indiv, boolean grupos) throws IOException {
@@ -218,6 +244,28 @@ class ConjuntosParaAleph {
                 regIndi.add(t) ;                
             });            
         }
+    }
+    
+    public ConjuntosParaAleph(Funciones cron, int cantReg,
+        boolean indiv, boolean grupos, boolean precatalog, String filtroWhere) throws IOException {
+
+        String consulta = "SELECT * FROM inventario WHERE barcode "
+                + "NOT IN (SELECT barcode FROM items) AND barcode "
+                + "NOT IN (SELECT barcode FROM conjuntos)";
+
+        if (filtroWhere != null && !filtroWhere.trim().isEmpty()) {
+            consulta = consulta + " AND (" + filtroWhere + ")";
+        }
+
+        this.cron = cron;
+        uni = new Unificador(cron);
+
+        listaPendientes = cron.consultaCompleta(consulta);
+        regIndi = new ArrayList<>();
+
+        listaPendientes.forEach((t) -> {
+            regIndi.add(t);
+        });
     }
     
     public ConjuntosParaAleph(Funciones cron, int cantReg,
