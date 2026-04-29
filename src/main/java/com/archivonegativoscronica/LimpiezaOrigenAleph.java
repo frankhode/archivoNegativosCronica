@@ -64,12 +64,13 @@ class LimpiezaOrigenAleph {
         List<CasoOrigenAleph> salida = new ArrayList<>();
 
         String sql = ""
-            + "SELECT barcode, observaciones "
-            + "FROM inventario "
-            + "WHERE observaciones LIKE 'Importado desde registro MS SYS %' "
-            + "AND barcode IN (SELECT barcode FROM conjuntos) "
-            + "AND barcode IN (SELECT barcode FROM items) "
-            + "ORDER BY barcode";
+            + "SELECT i.barcode, i.observaciones, it.sys AS sys_item "
+            + "FROM inventario i "
+            + "JOIN items it ON it.barcode = i.barcode "
+            + "WHERE i.observaciones LIKE 'Importado desde registro MS SYS %' "
+            + "AND i.barcode IN (SELECT barcode FROM conjuntos) "
+            + "AND it.sys = TRIM(REPLACE(i.observaciones, 'Importado desde registro MS SYS ', '')) "
+            + "ORDER BY i.barcode";
 
         try (PreparedStatement ps = cron.conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
@@ -288,7 +289,7 @@ class LimpiezaOrigenAleph {
 
             key.borraItemActual();
 
-            confirmarBorradoLocal(caso.getBarcode());
+            confirmarBorradoLocal(caso.getBarcode(), caso.getSysOrigen());
 
             caso.setEstado("item_borrado_local_actualizado");
             lblEstado.setText("Estado: item_borrado_local_actualizado");
@@ -323,30 +324,35 @@ class LimpiezaOrigenAleph {
         }
     }
 
-    private void confirmarBorradoLocal(String barcode) throws SQLException {
+    private void confirmarBorradoLocal(String barcode, String sysOrigen) throws SQLException {
         /*
          * Se ejecuta después de borrar el item en ALEPH.
-         * 1. Borra el item de la tabla local items para que entre al Catalogador-O-Matic.
-         * 2. Limpia observaciones para sacarlo de la cola MS.
+         * IMPORTANTE:
+         * No borrar por barcode solo, porque ese barcode puede haber sido cargado
+         * correctamente en otro SYS después del proceso de unificación.
          */
 
         String deleteItem = ""
                 + "DELETE FROM items "
-                + "WHERE barcode = ?";
+                + "WHERE barcode = ? "
+                + "AND sys = ?";
 
         String limpiarObs = ""
                 + "UPDATE inventario "
                 + "SET observaciones = '' "
                 + "WHERE barcode = ? "
-                + "AND observaciones LIKE 'Importado desde registro MS SYS %'";
+                + "AND observaciones LIKE 'Importado desde registro MS SYS %' "
+                + "AND TRIM(REPLACE(observaciones, 'Importado desde registro MS SYS ', '')) = ?";
 
         try (PreparedStatement ps1 = cron.conn.prepareStatement(deleteItem);
              PreparedStatement ps2 = cron.conn.prepareStatement(limpiarObs)) {
 
             ps1.setString(1, barcode);
+            ps1.setString(2, sysOrigen);
             ps1.executeUpdate();
 
             ps2.setString(1, barcode);
+            ps2.setString(2, sysOrigen);
             ps2.executeUpdate();
         }
     }

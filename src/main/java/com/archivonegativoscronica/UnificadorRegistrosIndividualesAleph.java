@@ -63,7 +63,7 @@ public class UnificadorRegistrosIndividualesAleph extends Tab {
         construirVista();
 
         btnCargarInventario.setDisable(true);
-        btnVerLoteInventario.setDisable(true);
+        btnVerLoteInventario.setDisable(false);
         btnEnviarPreunificador.setDisable(true);
         btnEnviarPrecatalogador.setDisable(true);
         btnLimpiarOrigenAleph.setDisable(false);
