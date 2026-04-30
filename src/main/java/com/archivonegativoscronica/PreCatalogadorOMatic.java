@@ -32,6 +32,10 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import java.text.Normalizer;
 import java.util.Locale;
+import java.util.HashSet;
+import java.util.Set;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
 
 class PreCatalogadorOMatic {
 
@@ -46,7 +50,7 @@ class PreCatalogadorOMatic {
     Background background;
     String conjuntoTemp;
     List<String[]> regIndi;
-    Button siguienteButton, anteriorButton, aceptarButton, cancelarButton, guardarCambiosButton;
+    Button siguienteButton, anteriorButton, aceptarButton, cancelarButton, guardarCambiosButton, buscarRelacionadosButton;
     ListView<String> listView;
     HashMap<String, List<String[]>> regsParaActualizar;
     ConjuntosParaAleph conjuntosParaAleph;
@@ -140,12 +144,20 @@ class PreCatalogadorOMatic {
         guardarCambiosButton = new Button("Guardar cambios");
         anteriorButton = new Button("Anterior");
         siguienteButton = new Button("Siguiente");
+        buscarRelacionadosButton = new Button("Buscar relacionados");
         cancelarButton = new Button("Cancelar");
 
         // Guardar: empieza deshabilitado hasta detectar cambios
         guardarCambiosButton.setDisable(true);
 
-        bottomBar = new HBox(aceptarButton, guardarCambiosButton, anteriorButton, siguienteButton, cancelarButton);
+        bottomBar = new HBox(
+            aceptarButton,
+            guardarCambiosButton,
+            anteriorButton,
+            siguienteButton,
+            buscarRelacionadosButton,
+            cancelarButton
+        );
         bottomBar.setAlignment(Pos.CENTER);
         bottomBar.setSpacing(10);
         bottomBar.setPadding(new Insets(12));
@@ -197,6 +209,7 @@ class PreCatalogadorOMatic {
 
         aceptarButton.setOnAction((ActionEvent event) -> correPrograma(nroProgr));
         guardarCambiosButton.setOnAction((ActionEvent event) -> guardarCambiosInventario());
+        buscarRelacionadosButton.setOnAction((ActionEvent event) -> abrirBuscadorRelacionados(primaryStage));
         siguienteButton.setOnAction((ActionEvent event) -> {
             Platform.runLater(() -> {
                 if (regIndi.isEmpty()) return;
@@ -233,6 +246,13 @@ class PreCatalogadorOMatic {
                 // fuerza el handler del choiceBox para armar UI
                 choiceBox.getOnAction().handle(new ActionEvent());
                 rebuildFocusOrder();
+                e.consume();
+                return;
+            }
+            
+            // Ctrl+B: abrir buscador de relacionados
+            if (e.isControlDown() && e.getCode() == KeyCode.B) {
+                buscarRelacionadosButton.fire();
                 e.consume();
                 return;
             }
@@ -384,11 +404,19 @@ class PreCatalogadorOMatic {
         guardarCambiosButton = new Button("Guardar cambios");
         anteriorButton = new Button("Anterior");
         siguienteButton = new Button("Siguiente");
+        buscarRelacionadosButton = new Button("Buscar relacionados");
         cancelarButton = new Button("Cancelar");
 
         guardarCambiosButton.setDisable(true);
 
-        bottomBar = new HBox(aceptarButton, guardarCambiosButton, anteriorButton, siguienteButton, cancelarButton);
+        bottomBar = new HBox(
+            aceptarButton,
+            guardarCambiosButton,
+            anteriorButton,
+            siguienteButton,
+            buscarRelacionadosButton,
+            cancelarButton
+        );
         bottomBar.setAlignment(Pos.CENTER);
         bottomBar.setSpacing(10);
         bottomBar.setPadding(new Insets(12));
@@ -439,7 +467,7 @@ class PreCatalogadorOMatic {
 
         aceptarButton.setOnAction((ActionEvent event) -> correPrograma(nroProgr));
         guardarCambiosButton.setOnAction((ActionEvent event) -> guardarCambiosInventario());
-
+        buscarRelacionadosButton.setOnAction((ActionEvent event) -> abrirBuscadorRelacionados(primaryStage));
         siguienteButton.setOnAction((ActionEvent event) -> {
             Platform.runLater(() -> {
                 if (regIndi.isEmpty()) {
@@ -493,6 +521,13 @@ class PreCatalogadorOMatic {
                     }
                 });
 
+                e.consume();
+                return;
+            }
+            
+            // Ctrl+B: abrir buscador de relacionados
+            if (e.isControlDown() && e.getCode() == KeyCode.B) {
+                buscarRelacionadosButton.fire();
                 e.consume();
                 return;
             }
@@ -999,6 +1034,234 @@ class PreCatalogadorOMatic {
             return s.substring(0, s.length() - 1);
         }
         return s;
+    }
+    
+    private void abrirBuscadorRelacionados(Stage owner) {
+        if (regIndi == null || regIndi.isEmpty()) {
+            mostrarInfo("Buscar relacionados", "No hay registros pendientes en el flujo actual.");
+            return;
+        }
+
+        String destino = destinoActualParaRelacionados();
+
+        if (destino == null || destino.trim().isEmpty()) {
+            mostrarInfo(
+                    "Buscar relacionados",
+                    "Primero seleccioná un destino válido: un conjunto o un registro existente."
+            );
+            return;
+        }
+
+        String busquedaInicial = sugerirBusquedaDesdeRegistroActual();
+
+        BuscadorRelacionadosInventario buscador = new BuscadorRelacionadosInventario(
+                cron,
+                candidatosRelacionadosSinActual(),
+                busquedaInicial,
+                seleccionados -> {
+                    if (seleccionados == null || seleccionados.isEmpty()) {
+                        return;
+                    }
+
+                    int asignados = asignarSeleccionadosADestino(seleccionados, destino);
+
+                    if (asignados > 0) {
+                        quitarDelFlujoIndividual(seleccionados);
+                        muestraInventarioEditable();
+                        rebuildFocusOrder();
+                        requestFocusFirstField();
+
+                        mostrarInfo(
+                                "Buscar relacionados",
+                                asignados + " registro(s) asignado(s) a:\n" + destino
+                        );
+                    }
+                }
+        );
+
+        buscador.showAndWait(owner);
+    }
+
+    private String destinoActualParaRelacionados() {
+        if (nroProgr == 1 && conjuntos != null) {
+            String seleccionado = conjuntos.getSelectionModel().getSelectedItem();
+
+            if (seleccionado != null && !seleccionado.trim().isEmpty()
+                    && !"Crear nuevo conjunto".equals(seleccionado)) {
+                return seleccionado.trim();
+            }
+
+            if (conjuntoTemp != null && !conjuntoTemp.trim().isEmpty()) {
+                return conjuntoTemp.trim();
+            }
+        }
+
+        if (nroProgr == 2 && listView != null) {
+            String tituloRegistro = listView.getSelectionModel().getSelectedItem();
+
+            if ((tituloRegistro == null || tituloRegistro.trim().isEmpty())
+                    && regSearchField != null
+                    && regSearchField.getText() != null
+                    && !regSearchField.getText().trim().isEmpty()
+                    && listView.getItems().size() == 1) {
+                tituloRegistro = listView.getItems().get(0);
+            }
+
+            if (tituloRegistro != null && !tituloRegistro.trim().isEmpty()) {
+                return obtenerSysDeRegistroExistente(tituloRegistro.trim());
+            }
+        }
+
+        return "";
+    }
+
+    private String obtenerSysDeRegistroExistente(String titulo245) {
+        if (titulo245 == null || titulo245.trim().isEmpty()) {
+            return "";
+        }
+
+        String sql = "SELECT sys FROM registros "
+                + "WHERE titulo245='" + sqlEscape(titulo245.trim()) + "' "
+                + "LIMIT 1;";
+
+        List<String> resultado = cron.consultaSimple(sql, 1);
+
+        if (resultado != null && !resultado.isEmpty()) {
+            String sys = resultado.get(0);
+            return sys == null ? "" : sys.trim();
+        }
+
+        return "";
+    }
+
+    private List<String[]> candidatosRelacionadosSinActual() {
+        List<String[]> candidatos = new ArrayList<>();
+
+        String barcodeActual = "";
+        if (regIndi != null && !regIndi.isEmpty() && numReg >= 0 && numReg < regIndi.size()) {
+            barcodeActual = safe(regIndi.get(numReg), 0);
+        }
+
+        for (String[] row : regIndi) {
+            String barcode = safe(row, 0);
+            if (!barcode.equals(barcodeActual)) {
+                candidatos.add(row);
+            }
+        }
+
+        return candidatos;
+    }
+
+    private String sugerirBusquedaDesdeRegistroActual() {
+        if (regIndi == null || regIndi.isEmpty() || numReg < 0 || numReg >= regIndi.size()) {
+            return "";
+        }
+
+        String titulo = safe(regIndi.get(numReg), 5);
+        titulo = titulo.replace("[material gráfico]", "")
+                .replace("[sic]", "")
+                .trim();
+
+        if (titulo.isEmpty()) {
+            return "";
+        }
+
+        String[] partes = titulo.split("\\s+");
+        StringBuilder sb = new StringBuilder();
+
+        int max = Math.min(3, partes.length);
+        for (int i = 0; i < max; i++) {
+            if (partes[i].length() <= 1) {
+                continue;
+            }
+
+            if (sb.length() > 0) {
+                sb.append(" ");
+            }
+            sb.append(partes[i]);
+        }
+
+        return sb.toString().trim();
+    }
+
+    private int asignarSeleccionadosADestino(List<String[]> seleccionados, String destino) {
+        if (destino == null || destino.trim().isEmpty()) {
+            mostrarInfo(
+                    "Buscar relacionados",
+                    "No pude resolver el destino de asignación."
+            );
+            return 0;
+        }
+
+        int asignados = 0;
+
+        for (String[] row : seleccionados) {
+            String barcode = safe(row, 0);
+            if (barcode.trim().isEmpty()) {
+                continue;
+            }
+
+            if (yaExisteEnConjuntos(barcode)) {
+                continue;
+            }
+
+            String sql = "INSERT INTO conjuntos (barcode, titulo, status) VALUES ("
+                    + "'" + sqlEscape(barcode) + "',"
+                    + "'" + sqlEscape(destino) + "',"
+                    + "'1'"
+                    + ");";
+
+            cron.consultaSimple(sql, 1);
+            asignados++;
+        }
+
+        return asignados;
+    }
+
+    private boolean yaExisteEnConjuntos(String barcode) {
+        if (barcode == null || barcode.trim().isEmpty()) {
+            return true;
+        }
+
+        String sql = "SELECT barcode FROM conjuntos "
+                + "WHERE barcode='" + sqlEscape(barcode) + "' "
+                + "LIMIT 1;";
+
+        List<String> r = cron.consultaSimple(sql, 1);
+        return r != null && !r.isEmpty();
+    }
+
+    private void quitarDelFlujoIndividual(List<String[]> seleccionados) {
+        if (regIndi == null || seleccionados == null || seleccionados.isEmpty()) {
+            return;
+        }
+
+        java.util.Set<String> barcodesAsignados = new java.util.HashSet<>();
+        for (String[] row : seleccionados) {
+            String barcode = safe(row, 0);
+            if (!barcode.trim().isEmpty()) {
+                barcodesAsignados.add(barcode);
+            }
+        }
+
+        if (barcodesAsignados.isEmpty()) {
+            return;
+        }
+
+        regIndi.removeIf(row -> barcodesAsignados.contains(safe(row, 0)));
+
+        if (numReg >= regIndi.size()) {
+            numReg = Math.max(0, regIndi.size() - 1);
+        }
+    }
+
+    private void mostrarInfo(String titulo, String mensaje) {
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION);
+        alert.setTitle(titulo);
+        alert.setHeaderText(null);
+        alert.setContentText(mensaje);
+        alert.getButtonTypes().setAll(javafx.scene.control.ButtonType.OK);
+        alert.showAndWait();
     }
 
 }
