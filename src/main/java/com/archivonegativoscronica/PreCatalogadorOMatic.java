@@ -36,6 +36,8 @@ import java.util.HashSet;
 import java.util.Set;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
+import javafx.animation.PauseTransition;
+import javafx.util.Duration;
 
 class PreCatalogadorOMatic {
 
@@ -71,6 +73,10 @@ class PreCatalogadorOMatic {
     // --- NUEVO: para tab-order y atajos ---
     private final ArrayList<Node> focusOrder = new ArrayList<>();
     private TextField regSearchField = null;
+
+    // --- NUEVO: evita disparar búsqueda en cada tecla ---
+    private final PauseTransition regSearchDebounce = new PauseTransition(Duration.millis(350));
+    private static final int MIN_CHARS_BUSQUEDA_REGISTRO = 3;
 
     PreCatalogadorOMatic(Funciones cron) throws IOException {
         Stage primaryStage = new Stage();
@@ -751,10 +757,24 @@ class PreCatalogadorOMatic {
         listView.setPrefHeight(320);
 
         // carga dinámica
+        // carga dinámica con debounce: evita consultar la base en cada tecla
         regSearchField.textProperty().addListener((obs, o, n) -> {
-            List<String> registros = obtenerRegistrosDeLaBaseDeDatos(n == null ? "" : n);
-            Collections.sort(registros);
-            listView.getItems().setAll(registros);
+            String texto = n == null ? "" : n.trim();
+
+            regSearchDebounce.stop();
+
+            if (texto.length() < MIN_CHARS_BUSQUEDA_REGISTRO) {
+                listView.getItems().clear();
+                return;
+            }
+
+            regSearchDebounce.setOnFinished(ev -> {
+                List<String> registros = obtenerRegistrosDeLaBaseDeDatos(texto);
+                Collections.sort(registros);
+                listView.getItems().setAll(registros);
+            });
+
+            regSearchDebounce.playFromStart();
         });
 
         // Ctrl+Enter desde búsqueda: aceptar

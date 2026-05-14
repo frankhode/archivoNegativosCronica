@@ -42,135 +42,128 @@ class PanelActualizaBase {
         cant_consultas = 0 ;
         cant_con = 0 ;
         rc = new RegistroCronica() ;
+
         Stage primaryStage = new Stage() ;
-        // Crear el panel principal
+
         VBox root = new VBox();
         root.setSpacing(10);
         root.setPadding(new Insets(10));
 
-        // Agregar las funciones
         root.getChildren().add(crearFuncion("Registros", () -> {
             try {
                 this.cargaRegistros();
             } catch (SQLException ex) {
                 Logger.getLogger(PanelActualizaBase.class.getName()).log(Level.SEVERE, null, ex);
             }
-        }));        
+        }));
+
         root.getChildren().add(crearFuncion("Areas", () -> {
             try {
                 this.cargaAreas();
             } catch (SQLException ex) {
                 Logger.getLogger(PanelActualizaBase.class.getName()).log(Level.SEVERE, null, ex);
             }
-        }));        
+        }));
+
         root.getChildren().add(crearFuncion("Materias", () -> {
             try {
                 this.cargaMaterias();
             } catch (SQLException ex) {
                 Logger.getLogger(PanelActualizaBase.class.getName()).log(Level.SEVERE, null, ex);
             }
-        }));        
+        }));
+
         root.getChildren().add(crearFuncion("Términos", () -> {
             try {
                 this.cargaTerminos();
             } catch (SQLException ex) {
                 Logger.getLogger(PanelActualizaBase.class.getName()).log(Level.SEVERE, null, ex);
             }
-        }));        
+        }));
+
         root.getChildren().add(crearFuncion("Items", () -> {
             try {
                 this.cargaItems();
             } catch (SQLException ex) {
                 Logger.getLogger(PanelActualizaBase.class.getName()).log(Level.SEVERE, null, ex);
             }
-        }));        
+        }));
+
         root.getChildren().add(crearFuncion("Títulos", () -> {
             try {
                 this.cargaTitulos();
             } catch (SQLException ex) {
                 Logger.getLogger(PanelActualizaBase.class.getName()).log(Level.SEVERE, null, ex);
             }
-        }));        
+        }));
 
-        // Configurar la escena y mostrarla
         Scene scene = new Scene(root, 400, 300);
         primaryStage.setTitle("Actualización de la base bibliográfica");
         primaryStage.setScene(scene);
         primaryStage.setAlwaysOnTop(true);
         primaryStage.show();
     }
-    
+
     private HBox crearFuncion(String nombreFuncion, Runnable funcion) {
-        // Crear la fila para la función
         HBox funcionRow = new HBox();
-        funcionRow.setSpacing(10);        
+        funcionRow.setSpacing(10);
         funcionRow.setAlignment(Pos.CENTER_LEFT);
 
-        // Crear el texto con el nombre de la función
         Text nombreTexto = new Text(nombreFuncion);
 
-        // Crear los círculos para indicar el estado
         Circle apagadoCircle = crearCirculo(Color.RED);
         Circle corriendoCircle = crearCirculo(Color.GREY);
         Circle finalizadoCircle = crearCirculo(Color.GREY);
 
-        // Crear el botón para ejecutar la función
         Button ejecutarButton = new Button("Ejecutar");
+
         Platform.runLater(() -> {
             ejecutarButton.setOnAction(event -> {
-                // Cambiar el estado del círculo a "corriendo" al ejecutar la función
                 apagadoCircle.setFill(Color.GREY);
                 corriendoCircle.setFill(Color.YELLOW);
                 ejecutarButton.setDisable(true);
 
-                // Crear un Task para ejecutar la función en segundo plano
                 Task<Void> task = new Task<Void>() {
                     @Override
                     protected Void call() throws Exception {
-                        // Llamar a la función correspondiente
                         funcion.run();
                         return null;
                     }
                 };
 
-                // Configurar acciones para actualizar la interfaz de usuario después de que se complete el Task
                 task.setOnSucceeded(e -> {
-                    // Cambiar el estado del círculo a "finalizado" después de ejecutar la función
                     corriendoCircle.setFill(Color.GREY);
                     finalizadoCircle.setFill(Color.GREEN);
                     ejecutarButton.setDisable(false);
                 });
 
                 task.setOnFailed(e -> {
-                    // Manejar cualquier error o excepción que ocurra durante la ejecución del Task
                     Throwable exception = task.getException();
                     if (exception != null) {
                         exception.printStackTrace();
                     }
 
-                    // Restaurar el estado inicial del círculo en caso de fallo
                     apagadoCircle.setFill(Color.RED);
                     corriendoCircle.setFill(Color.GREY);
                     finalizadoCircle.setFill(Color.GREY);
                     ejecutarButton.setDisable(false);
                 });
 
-                // Ejecutar el Task en un nuevo hilo utilizando un ExecutorService
                 ExecutorService executor = Executors.newSingleThreadExecutor();
                 executor.submit(task);
-
-                // Cerrar el ExecutorService después de que se complete el Task
                 executor.shutdown();
             });
         });
 
-        // Agregar los elementos a la fila
         HBox hb1 = new HBox(nombreTexto) ;
         hb1.setPrefWidth(100);
+
         HBox hb2 = new HBox(apagadoCircle, corriendoCircle, finalizadoCircle) ;
         hb2.setPrefWidth(180);
+
         HBox hb3 = new HBox(ejecutarButton) ;
         hb3.setPrefWidth(100);
+
         funcionRow.getChildren().addAll(hb1,hb2,hb3);
 
         return funcionRow;
@@ -181,82 +174,164 @@ class PanelActualizaBase {
         circle.setFill(color);
         return circle;
     }
-    
+
+    private void resetBatchCounters() {
+        cant_consultas = 0;
+        cant_con = 0;
+    }
+
+    private String normalizaSoloParaComparar(String s) {
+        if (s == null) {
+            return "";
+        }
+
+        s = s.trim();
+        s = s.replaceAll("\\s+", " ");
+        s = s.toUpperCase();
+
+        // Caso FO con corchetes: [FO053496] -> FO053496
+        if (s.matches("^\\[FO\\d+\\]$")) {
+            s = s.substring(1, s.length() - 1);
+        }
+
+        // Número + sufijo: 004639 BIS -> 4639 BIS
+        if (s.matches("^0*\\d+\\s+.*$")) {
+            String[] partes = s.split("\\s+", 2);
+            String num = partes[0].replaceFirst("^0+", "");
+
+            if (num.isEmpty()) {
+                num = "0";
+            }
+
+            return num + " " + partes[1];
+        }
+
+        // Solo numérico: 002230 -> 2230
+        if (s.matches("\\d+")) {
+            String num = s.replaceFirst("^0+", "");
+            return num.isEmpty() ? "0" : num;
+        }
+
+        return s;
+    }
+
+    private boolean coincideNroA(String nroATitulo, String nroAItem) {
+        if (nroATitulo == null || nroAItem == null) {
+            return false;
+        }
+
+        String a = nroATitulo.trim();
+        String b = nroAItem.trim();
+
+        if (a.equals(b)) {
+            return true;
+        }
+
+        String aa = normalizaSoloParaComparar(a);
+        String bb = normalizaSoloParaComparar(b);
+
+        return aa.equals(bb);
+    }
+
     private void cargaRegistros() throws SQLException {
+        resetBatchCounters();
+
         cron.envia("TRUNCATE registros") ;
-        try {        
-            List<Registro> arrayRegistros = rc.getArrayRegistros() ;            
-            //conecta y prepara el esquema de las consultas
+
+        try {
+            List<Registro> arrayRegistros = rc.getArrayRegistros() ;
+
             cron.conn.setAutoCommit(false);
+
             stmt = cron.conn.prepareStatement("INSERT INTO archivoCronica.registros ("
                     + "sys,registro,titulo245) VALUES (?,?,?);");
-            
+
             try {
                 arrayRegistros.forEach((reg) -> {
                     String sys = reg.getSys() ;
                     String registro = reg.getRegistro() ;
                     String tit245 = reg.getTituloFormateado().replace(" [material gráfico].","") ;
+
                     try {
-                        stmt.setString(1,sys);//sys
-                        stmt.setString(2,registro);//registro completo
-                        stmt.setString(3,tit245);//registro completo
+                        stmt.setString(1,sys);
+                        stmt.setString(2,registro);
+                        stmt.setString(3,tit245);
                         stmt.addBatch();
-                        
-                        if (cant_consultas == 50) {
+
+                        if (cant_consultas >= 50) {
                             int [] results = stmt.executeBatch();
                             cron.conn.commit();
-                            cant_con = cant_con+results.length ;
+                            cant_con = cant_con + results.length ;
+
                             stmt = cron.conn.prepareStatement("INSERT INTO archivoCronica.registros ("
                                     + "sys,registro,titulo245) VALUES (?,?,?);");
-                            //reinicia para la proxima consulta
+
                             cant_consultas = 0 ;
                         }
+
                         cant_consultas++;
+
                     } catch (SQLException ex) {
                         cron.mensajeSalida("SQLException: " + ex.getMessage() + "\n" +
                                 "SQLState: " + ex.getSQLState()+ "\n" +
-                                        "VendorError: " + ex.getErrorCode());
+                                "VendorError: " + ex.getErrorCode());
                     }
                 });
-                int [] results = stmt.executeBatch();
+
+                stmt.executeBatch();
                 cron.conn.commit();
+
             } catch (SQLException e) {
                 System.out.println(e);
             }
+
         } catch (SQLException ex) {
             Logger.getLogger(PanelActualizaBase.class.getName()).log(Level.SEVERE, null, ex);
         }
+
         cron.conn.close();
         cron.conectarMySQL() ;
-    }    
-    
+    }
+
     public void cargaAreas() throws SQLException {
+        resetBatchCounters();
+
         cron.envia("TRUNCATE areas") ;
+
         try {
             List<Registro> arrayRegistros = rc.getArrayRegistros() ;
-            //conecta y prepara el esquema de las consultas
+
             cron.conn.setAutoCommit(false);
+
             stmt = cron.conn.prepareStatement("INSERT INTO areas(sys, area) VALUES (?,?);");
-            //inicia objeto materia y lista para almacenarlos
+
             try {
                 arrayRegistros.forEach((reg) -> {
                     String sys = reg.getSys() ;
                     List<String> areas = reg.getAreas() ;
+
                     areas.forEach((area) -> {
-                        area = area.substring(0,7) ;
                         try {
+                            if (area.length() >= 7) {
+                                area = area.substring(0,7) ;
+                            }
+
                             stmt.setString(1,sys);
                             stmt.setString(2,area);
                             stmt.addBatch();
-                            
-                            if (cant_consultas == 1000) {
+
+                            if (cant_consultas >= 1000) {
                                 int [] results = stmt.executeBatch();
                                 cron.conn.commit();
-                                cant_con = cant_con+results.length ;
+                                cant_con = cant_con + results.length ;
+
                                 stmt = cron.conn.prepareStatement("INSERT INTO areas(sys, area) VALUES (?,?);");
+
                                 cant_consultas = 0 ;
                             }
+
                             cant_consultas++;
+
                         } catch (SQLException e) {
                             cron.mensajeSalida("Algo falló al cargar la tabla areas...\n"+e
                                     +"area: '"+area+"'");
@@ -264,29 +339,39 @@ class PanelActualizaBase {
                         }
                     });
                 });
-                int [] results = stmt.executeBatch();
-                cron.conn.commit();                
-            } catch (SQLException e) {                
+
+                stmt.executeBatch();
+                cron.conn.commit();
+
+            } catch (SQLException e) {
+                System.out.println(e);
             }
+
         } catch (SQLException ex) {
             Logger.getLogger(PanelActualizaBase.class.getName()).log(Level.SEVERE, null, ex);
         }
+
         cron.conn.close();
         cron.conectarMySQL() ;
     }
-    
+
     public void cargaMaterias() throws SQLException {
+        resetBatchCounters();
+
         cron.envia("TRUNCATE materias") ;
+
         try {
             List<Registro> arrayRegistros = rc.getArrayRegistros() ;
-            //conecta y prepara el esquema de las consultas
+
             cron.conn.setAutoCommit(false);
+
             stmt = cron.conn.prepareStatement("INSERT INTO materias (sys,campo,materia,"
                     + "linea) VALUES (?,?,?,?);");
-            //inicia objeto materia y lista para almacenarlos
+
             try {
                 arrayRegistros.forEach((reg) -> {
                     String sys = reg.getSys() ;
+
                     try {
                         List<String> campos = new ArrayList<>() ;
                         campos.add("600") ;
@@ -296,50 +381,62 @@ class PanelActualizaBase {
                         campos.add("650") ;
                         campos.add("651") ;
                         campos.add("655") ;
-                        
+
                         String[] split = reg.getRegistro().split("\n");
+
                         for (String linea : split) {
                             String campo = linea.substring(10,13) ;
+
                             if (campos.contains(campo)) {
-                                /*String[] subcampos = linea.substring(18).split("\\$\\$.") ;
-                                String materiaFormateada = subcampos[1] ;*/
-                                String materiaFormateada = cron.formateaMateria(linea) ;                                
+                                String materiaFormateada = cron.formateaMateria(linea) ;
+
                                 stmt.setString(1,sys);
                                 stmt.setString(2,campo);
                                 stmt.setString(3,materiaFormateada);
                                 stmt.setString(4,linea);
                                 stmt.addBatch();
-                                
                             }
                         }
-                        if (cant_consultas == 10) {
+
+                        if (cant_consultas >= 10) {
                             int [] results = stmt.executeBatch();
                             cron.conn.commit();
-                            cant_con = cant_con+results.length ;
-                            
+                            cant_con = cant_con + results.length ;
+
                             stmt = cron.conn.prepareStatement("INSERT INTO materias (sys,campo,materia,"
                                     + "linea) VALUES (?,?,?,?);");
+
                             cant_consultas = 0 ;
                         }
+
                         cant_consultas++;
+
                     } catch (SQLException e) {
                         cron.mensajeSalida("Algo falló al cargar la tabla materias...\n"+e);
                     }
                 });
-                int [] results = stmt.executeBatch();
+
+                stmt.executeBatch();
                 cron.conn.commit();
+
             } catch (Exception e) {
+                System.out.println(e);
             }
+
         } catch (SQLException ex) {
             Logger.getLogger(PanelActualizaBase.class.getName()).log(Level.SEVERE, null, ex);
-        }        
+        }
+
         cron.conn.close();
         cron.conectarMySQL() ;
     }
-    
-    public void cargaTerminos() throws SQLException {        
+
+    public void cargaTerminos() throws SQLException {
+        resetBatchCounters();
+
         try {
             List<String> ter = new ArrayList<>() ;
+
             rc.getArrayRegistros().forEach((reg) -> {
                 reg.getCampo("650").forEach((mat) -> {
                     if (mat.contains(" -- ")) {
@@ -347,59 +444,70 @@ class PanelActualizaBase {
                         ter.add(subcampos[0]) ;
                     } else {
                         ter.add(mat) ;
-                    }                    
+                    }
                 });
             });
-            
+
             LinkedHashSet<String> hashSet = new LinkedHashSet<>(ter);
             ArrayList<String> listWithoutDuplicates = new ArrayList<>(hashSet);
-            
-            //conecta y prepara el esquema de las consultas
+
             cron.conn.setAutoCommit(false);
+
             stmt = cron.conn.prepareStatement("INSERT IGNORE INTO terminos (termino) VALUES (?);");
-            
+
             listWithoutDuplicates.forEach((t) -> {
                 try {
                     stmt.setString(1,t);
                     stmt.addBatch();
-                    
-                    if (cant_consultas == 50) {
+
+                    if (cant_consultas >= 50) {
                         int [] results = stmt.executeBatch();
                         cron.conn.commit();
-                        cant_con = cant_con+results.length ;
+                        cant_con = cant_con + results.length ;
+
                         stmt = cron.conn.prepareStatement("INSERT IGNORE INTO terminos (termino) VALUES (?);");
-                        //reinicia para la proxima consulta
+
                         cant_consultas = 0 ;
                     }
+
                     cant_consultas++;
+
                 } catch (SQLException ex) {
                     cron.mensajeSalida("SQLException: " + ex.getMessage() + "\n" +
                             "SQLState: " + ex.getSQLState()+ "\n" +
-                                    "VendorError: " + ex.getErrorCode());
+                            "VendorError: " + ex.getErrorCode());
                 }
             });
-            int [] results = stmt.executeBatch();
+
+            stmt.executeBatch();
             cron.conn.commit();
+
         } catch (SQLException ex) {
             Logger.getLogger(PanelActualizaBase.class.getName()).log(Level.SEVERE, null, ex);
         }
+
         cron.conn.close();
         cron.conectarMySQL() ;
     }
-    
+
     public void cargaItems() throws SQLException{
+        resetBatchCounters();
+
         cron.envia("TRUNCATE items") ;
+
         try {
             List<Registro> arrayRegistros = rc.getArrayRegistros() ;
-            //conecta y prepara el esquema de las consultas
+
             cron.conn.setAutoCommit(false);
+
             stmt = cron.conn.prepareStatement("INSERT INTO items(sys,dato,barcode,ufi,nroA) "
                     + "VALUES (?,?,?,?,?);");
-            //inicia objeto materia y lista para almacenarlos
+
             try {
                 arrayRegistros.forEach((reg) -> {
                     String sys = reg.getSys() ;
                     List<Item> items = reg.items;
+
                     items.forEach((item) -> {
                         try {
                             stmt.setString(1,sys);
@@ -408,78 +516,126 @@ class PanelActualizaBase {
                             stmt.setString(4,item.getUfi());
                             stmt.setString(5,item.getDescripcion());
                             stmt.addBatch();
-                            
-                            if (cant_consultas == 1000) {
+
+                            if (cant_consultas >= 1000) {
                                 int [] results = stmt.executeBatch();
                                 cron.conn.commit();
-                                cant_con = cant_con+results.length ;
+                                cant_con = cant_con + results.length ;
+
                                 stmt = cron.conn.prepareStatement("INSERT INTO items(sys,dato,barcode,ufi,nroA) "
                                         + "VALUES (?,?,?,?,?);");
+
                                 cant_consultas = 0 ;
                             }
+
                             cant_consultas++;
+
                         } catch (SQLException e) {
-                            cron.mensajeSalida("Algo falló al cargar la tabla areas...\n"+e
-                                    +"area: '"+item.imprimeItem()+"'");
+                            cron.mensajeSalida("Algo falló al cargar la tabla items...\n"+e
+                                    +"item: '"+item.imprimeItem()+"'");
                         }
                     });
                 });
-                int [] results = stmt.executeBatch();
+
+                stmt.executeBatch();
                 cron.conn.commit();
+
             } catch (SQLException e) {
+                System.out.println(e);
             }
+
         } catch (SQLException ex) {
             Logger.getLogger(PanelActualizaBase.class.getName()).log(Level.SEVERE, null, ex);
         }
+
         cron.conn.close();
         cron.conectarMySQL() ;
     }
-    
+
     public void cargaTitulos() throws SQLException {
+        resetBatchCounters();
+
         cron.envia("TRUNCATE titulos") ;
+
         try {
             List<Registro> arrayRegistros = rc.getArrayRegistros() ;
-            //conecta y prepara el esquema de las consultas
+
             cron.conn.setAutoCommit(false);
+
             stmt = cron.conn.prepareStatement("INSERT INTO titulos(sys, titulo, nroA, barcode, ufi, fecha) "
                     + "VALUES (?,?,?,?,?,?);");
-            //inicia objeto materia y lista para almacenarlos
-            arrayRegistros.forEach((reg) -> {                
+
+            arrayRegistros.forEach((reg) -> {
                 if (!reg.items.isEmpty()) {
                     String sys = reg.getSys() ;
-                    String titulo,nroA="",barcode="",ufi="",fecha ;
+                    String titulo;
+                    String nroA = "";
+                    String barcode = "";
+                    String ufi = "";
+                    String fecha;
+
                     List<String> c505 = reg.getCampo("505");
+
                     if (c505.size() > 0) {
                         for (String campo : c505) {
-                            String[] titulos = campo.split(" -- ") ;
+                            String[] titulos = campo.split("\\s+--\\s+");
+
                             for (String tit : titulos) {
-                                try {
-                                    nroA = tit.split("\\.")[0] ;                                    
-                                } catch (Exception e) {
-                                    nroA = "" ;
-                                    System.out.print(sys+" -> tit");
+                                tit = tit.trim();
+
+                                while (tit.startsWith("--")) {
+                                    tit = tit.substring(2).trim();
                                 }
-                                
-                                String[] f = tit.split(", ") ;
+                                if (tit.isEmpty()) {
+                                    continue;
+                                }
+
+                                /*
+                                 * Muy importante:
+                                 * Estas variables se limpian por cada título analítico.
+                                 * Si no, cuando un nroA no matchea, arrastra el barcode anterior.
+                                 */
+                                nroA = "";
+                                barcode = "";
+                                ufi = "";
+                                fecha = "";
+                                titulo = "";
+
+                                try {
+                                    nroA = tit.split("\\.")[0].trim();
+                                } catch (Exception e) {
+                                    nroA = "";
+                                    System.out.print(sys + " -> tit");
+                                }
+
+                                String[] f = tit.split(", ");
                                 if (f.length > 1) {
-                                    fecha = cron.formateaFecha(f[f.length-1]) ;
-                                } else {
-                                    fecha = "" ;
+                                    fecha = cron.formateaFecha(f[f.length - 1]);
                                 }
-                                titulo = "" ;
+
                                 try {
-                                    titulo = tit.substring(nroA.length()+2) ;
+                                    titulo = tit.substring(nroA.length() + 2).trim();
                                 } catch (Exception e) {
+                                    System.out.println("No se pudo extraer título - SYS: " + sys + " / TIT: " + tit);
                                     System.out.println(reg.getRegistro());
                                 }
-                                
+
                                 for (Item item : reg.items) {
-                                    String descripcion = item.getDescripcion() ;
-                                    if (nroA.equals(descripcion)) {
-                                        barcode = item.getBarcode() ;
-                                        ufi = item.getUfi() ;
+                                    String descripcion = item.getDescripcion();
+
+                                    if (coincideNroA(nroA, descripcion)) {
+                                        barcode = item.getBarcode();
+                                        ufi = item.getUfi();
+                                        break;
                                     }
                                 }
+
+                                if (barcode.isEmpty()) {
+                                    System.out.println("Sin match item/titulo - SYS: " + sys
+                                            + " nroA: " + nroA
+                                            + " titulo: " + titulo);
+                                }
+
                                 try {
                                     stmt.setString(1,sys);
                                     stmt.setString(2,titulo);
@@ -488,81 +644,105 @@ class PanelActualizaBase {
                                     stmt.setString(5,ufi);
                                     stmt.setString(6,fecha);
                                     stmt.addBatch();
-                                    
-                                    if (cant_consultas == 1000) {
+
+                                    if (cant_consultas >= 1000) {
                                         int [] results = stmt.executeBatch();
                                         cron.conn.commit();
-                                        cant_con = cant_con+results.length ;
+                                        cant_con = cant_con + results.length ;
+
                                         stmt = cron.conn.prepareStatement("INSERT INTO titulos(sys, titulo, nroA, barcode, ufi, fecha) "
                                                 + "VALUES (?,?,?,?,?,?);");
+
                                         cant_consultas = 0 ;
                                     }
+
                                     cant_consultas++;
+
                                 } catch (SQLException e) {
                                     System.out.println(e.getMessage());
                                 }
                             }
                         }
+
                     } else {
                         titulo = reg.getTituloFormateado() ;
                         titulo = titulo.replace(" [material gráfico]","") ;
+
                         String[] f = titulo.split(", ") ;
-                        fecha = cron.formateaFecha(f[f.length-1]) ;
+                        fecha = "";
+
+                        if (f.length > 1) {
+                            fecha = cron.formateaFecha(f[f.length - 1]) ;
+                        }
+
                         try {
                             nroA = reg.items.get(0).getDescripcion() ;
                         } catch (Exception e) {
+                            nroA = "";
                             System.out.println(reg.getRegistro());
                         }
-                        
-                        barcode = reg.items.get(0).getBarcode();
-                        ufi = reg.items.get(0).getUfi() ;
+
+                        try {
+                            barcode = reg.items.get(0).getBarcode();
+                            ufi = reg.items.get(0).getUfi() ;
+                        } catch (Exception e) {
+                            barcode = "";
+                            ufi = "";
+                        }
+
                         if (barcode.length() == 8) {
                             try {
-                            stmt.setString(1,sys);
-                            stmt.setString(2,titulo);
-                            stmt.setString(3,nroA);
-                            stmt.setString(4,barcode);
-                            stmt.setString(5,ufi);
-                            stmt.setString(6,fecha);
-                            stmt.addBatch();
-                            
-                            if (cant_consultas == 1000) {
-                                int [] results = stmt.executeBatch();
-                                cron.conn.commit();
-                                cant_con = cant_con+results.length ;
-                                stmt = cron.conn.prepareStatement("INSERT INTO titulos(sys, titulo, nroA, barcode, ufi, fecha) "
-                                        + "VALUES (?,?,?,?,?,?);");
-                                cant_consultas = 0 ;
+                                stmt.setString(1,sys);
+                                stmt.setString(2,titulo);
+                                stmt.setString(3,nroA);
+                                stmt.setString(4,barcode);
+                                stmt.setString(5,ufi);
+                                stmt.setString(6,fecha);
+                                stmt.addBatch();
+
+                                if (cant_consultas >= 1000) {
+                                    int [] results = stmt.executeBatch();
+                                    cron.conn.commit();
+                                    cant_con = cant_con + results.length ;
+
+                                    stmt = cron.conn.prepareStatement("INSERT INTO titulos(sys, titulo, nroA, barcode, ufi, fecha) "
+                                            + "VALUES (?,?,?,?,?,?);");
+
+                                    cant_consultas = 0 ;
+                                }
+
+                                cant_consultas++;
+
+                            } catch (SQLException e) {
+                                System.out.println(e.getMessage());
                             }
-                            cant_consultas++;
-                        } catch (SQLException e) {
-                            System.out.println(e.getMessage());                            
-                        }
+
                         } else {
-                            System.out.println("SYS:" + sys);   
+                            System.out.println("SYS:" + sys);
                             System.out.println("TITULO:" + titulo);
                             System.out.println("NROA:" + nroA);
                             System.out.println("BARCODE:" + barcode);
                             System.out.println("UFI:" + ufi);
                             System.out.println("FECHA:" + fecha);
                         }
-                        
                     }
                 }
             });
+
         } catch (SQLException ex) {
             System.out.println(ex);
             Logger.getLogger(PanelActualizaBase.class.getName()).log(Level.SEVERE, null, ex);
         }
+
         try {
-            int [] results = stmt.executeBatch();
-            //System.out.println(Arrays.toString(results));
+            stmt.executeBatch();
             cron.conn.commit();
         } catch (SQLException e) {
             System.out.println(e);
-        }        
+        }
+
         cron.conn.close();
         cron.conectarMySQL() ;
     }
-   
+
 }
