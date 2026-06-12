@@ -36,6 +36,33 @@ class CatalogadorOMatic {
         addConju(cron);
     }
     
+    CatalogadorOMatic(Funciones cron, boolean usarCOM2) throws AWTException, InterruptedException, IOException {
+        key = new Keyboard(new Robot());
+
+        // conjunto de registros para trabajar
+        registrosInventario = new ConjuntosParaAleph(cron, 0, true, true);
+
+        // separamos en tres categorias IND - GRUPOS - REGS PARA ACTUALIZAR
+        regsParaActualizar = new RegistrosParaAgregar(cron);
+
+        // IMPORTANTE:
+        // InventariosPendientes ejecuta regsIndParaAgregar(...) y regsGrupalesParaAgregar(...)
+        // y ahí se llena regsParaActualizar con los registros a actualizar.
+        InventariosPendientes pendientes = new InventariosPendientes(registrosInventario);
+        System.out.println("COM2 - regsParaActualizar: " + regsParaActualizar.getRegs().size());
+        System.out.println("COM2 - pendientes indiv: " + pendientes.getRegsIndiv().size());
+        System.out.println("COM2 - pendientes grupos: " + pendientes.getRegsGrupos().size());
+        if (usarCOM2) {
+            COM2pro com2 = new COM2pro(pendientes, cron, key);
+            com2.setRegistrosParaAgregar(regsParaActualizar);
+        } else {
+            COM com = new COM(pendientes, cron, key);
+            com.setRegistrosParaAgregar(regsParaActualizar);
+        }
+
+        addConju(cron);
+    }
+    
     CatalogadorOMatic(Funciones cron, ConjuntosParaAleph registrosInventario,HashMap<String,List<String[]>> regs) throws AWTException, InterruptedException, IOException {
         key = new Keyboard(new Robot()) ;        
         

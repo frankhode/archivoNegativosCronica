@@ -36,7 +36,7 @@ class RegistroParaActualizar {
         boolean regInd = false ;
         
         //titulos
-        titulos = regsParaAgregar.getTitulos(sys);
+        titulos = new ArrayList<>(regsParaAgregar.getTitulos(sys));
         
         System.out.println("Consulta:"+consulta);
         System.out.println("Registro original:");

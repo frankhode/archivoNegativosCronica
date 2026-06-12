@@ -585,6 +585,14 @@ class BarraDeMenu {
                 Logger.getLogger(BarraDeMenu.class.getName()).log(Level.SEVERE, null, ex);
             }
         });        
+        MenuItem cat1_2 = new MenuItem("Catalogador-O-Matic 2");
+        cat1_2.setOnAction((event) -> {
+            try {
+                CatalogadorOMatic com2 = new CatalogadorOMatic(cron, true);
+            } catch (AWTException | InterruptedException | IOException ex) {
+                Logger.getLogger(BarraDeMenu.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        });
         MenuItem cat2 = new MenuItem("PreUnificador-O-Matic");
         cat2.setOnAction((event) -> {
             try {
@@ -651,7 +659,7 @@ class BarraDeMenu {
             cron.getTabPane().getSelectionModel().select(uria);
         });
 
-        cat.getItems().addAll(cat1,cat2,cat3,cat4,
+        cat.getItems().addAll(cat1,cat1_2,cat2,cat3,cat4,
                 cat5, cat6, cat7, cat8, cat9) ;
         
         return cat ;
