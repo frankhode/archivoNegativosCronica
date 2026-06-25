@@ -8,17 +8,36 @@ public class RegistroCompletoCOM2Builder {
 
     private final Funciones cron;
 
+    public enum TipoMaterialCOM2 {
+        BN,
+        COLOR,
+        MIXTO
+    }
+
     public RegistroCompletoCOM2Builder(Funciones cron) {
         this.cron = cron;
     }
 
-    public ResultadoRegistroCOM2 construir(String sys, RegistrosParaAgregar regsParaAgregar, boolean color) {
+    /*
+     * Lógica COM original:
+     *
+     * nuevosColor = checkbox "Ítems nuevos color".
+     *
+     * El tipo de origen se conserva desde el 300 original.
+     * Si no se especifica color, se asume B/N.
+     */
+    public ResultadoRegistroCOM2 construir(String sys, RegistrosParaAgregar regsParaAgregar, boolean nuevosColor) {
         ResultadoRegistroCOM2 resultado = new ResultadoRegistroCOM2();
 
         RegistroParaActualizar rpa = new RegistroParaActualizar(cron, sys, regsParaAgregar);
         String registroOriginal = buscarRegistroOriginal(sys);
+
         List<String[]> inventariosNuevos = regsParaAgregar.returnRegInv(sys);
         int cantSobresTotal = contarSobresTotales(registroOriginal, inventariosNuevos);
+
+        TipoMaterialCOM2 tipoOriginal = detectarTipoMaterialOriginal(registroOriginal);
+        TipoMaterialCOM2 tipoFinal = calcularTipoFinal(tipoOriginal, nuevosColor);
+
         Generador505Seguro gen505 = new Generador505Seguro(cron);
         Resultado505 resultado505 = gen505.construir(
                 registroOriginal,
@@ -40,14 +59,13 @@ public class RegistroCompletoCOM2Builder {
         }
 
         agregar(lineasSinSys, "24500 L $$a" + valor(rpa.getTitulo245()));
-
         agregar(lineasSinSys, campo260Grupal(rpa.getFechas()));
-
-        agregar(lineasSinSys, campo300Grupal(cantSobresTotal, color));
+        agregar(lineasSinSys, campo300Grupal(cantSobresTotal, tipoFinal));
 
         agregar(lineasSinSys, "500   L $$aTítulo asignado por el personal de la Biblioteca.");
 
         String campoFotografos = campo500Fotografos(rpa.getFotografos());
+
         if (!campoFotografos.equals("")) {
             agregar(lineasSinSys, campoFotografos);
         }
@@ -66,16 +84,11 @@ public class RegistroCompletoCOM2Builder {
         lineasSinSys.addAll(campos6XX("650", rpa.getCampo650()));
         lineasSinSys.addAll(campos6XX("651", rpa.getCampo651()));
 
-        /*
-         * 655: lo mantenemos con la lógica original de materiales.
-         * No copiamos todos los 655 originales a ciegas; agregamos los
-         * que corresponden por presencia de negativo/diapo.
-         */
-        if (rpa.tieneNega()) {
+        if (tipoFinal == TipoMaterialCOM2.BN || tipoFinal == TipoMaterialCOM2.MIXTO) {
             agregar(lineasSinSys, "655 4 L $$aNegativos flexibles");
         }
 
-        if (rpa.tieneDiapo() || color) {
+        if (tipoFinal == TipoMaterialCOM2.COLOR || tipoFinal == TipoMaterialCOM2.MIXTO) {
             agregar(lineasSinSys, "655 4 L $$aFotografía en color");
         }
 
@@ -83,24 +96,79 @@ public class RegistroCompletoCOM2Builder {
         agregar(lineasSinSys, "OWN   L $$aCAT_FOTO");
 
         String alephTag = unirCRLF(lineasSinSys);
+
         resultado.setAlephTagSinSys(alephTag);
         resultado.setPreviewConSys(agregarSysPreview(sys, lineasSinSys));
 
         return resultado;
     }
-    
-    private String normalizarSubcampoA(String contenido) {
-        String limpio = valor(contenido);
 
-        if (limpio.equals("")) {
-            return "";
+    private TipoMaterialCOM2 detectarTipoMaterialOriginal(String registroOriginal) {
+        String campo300 = normalizarTexto(extraerCampoOriginal(registroOriginal, "300"));
+
+        boolean originalColor = campo300.contains("diapositiva")
+                || campo300.contains("diapositivas")
+                || campo300.contains("$$bcol")
+                || campo300.contains(" col.")
+                || campo300.contains("col.");
+
+        boolean originalBN = campo300.contains("negativos flexibles")
+                || campo300.contains("negativo flexible")
+                || campo300.contains("$$bbyn")
+                || campo300.contains(" byn")
+                || campo300.contains("byn")
+                || campo300.contains("blanco y negro");
+
+        if (originalColor && originalBN) {
+            return TipoMaterialCOM2.MIXTO;
         }
 
-        if (limpio.startsWith("$$")) {
-            return limpio;
+        if (originalColor) {
+            return TipoMaterialCOM2.COLOR;
         }
 
-        return "$$a" + limpio;
+        /*
+         * COM original:
+         * si no se especifica color, se trata como B/N.
+         */
+        return TipoMaterialCOM2.BN;
+    }
+
+    private TipoMaterialCOM2 calcularTipoFinal(TipoMaterialCOM2 tipoOriginal, boolean nuevosColor) {
+        if (tipoOriginal == TipoMaterialCOM2.MIXTO) {
+            return TipoMaterialCOM2.MIXTO;
+        }
+
+        if (tipoOriginal == TipoMaterialCOM2.COLOR) {
+            if (nuevosColor) {
+                return TipoMaterialCOM2.COLOR;
+            }
+
+            return TipoMaterialCOM2.MIXTO;
+        }
+
+        /*
+         * Original B/N.
+         */
+        if (nuevosColor) {
+            return TipoMaterialCOM2.MIXTO;
+        }
+
+        return TipoMaterialCOM2.BN;
+    }
+
+    private String campo300Grupal(int cantItems, TipoMaterialCOM2 tipoMaterial) {
+        switch (tipoMaterial) {
+            case COLOR:
+                return "300   L $$a" + cantItems + " sobres (diapositivas col.).";
+
+            case MIXTO:
+                return "300   L $$a" + cantItems + " sobres (negativos flexibles y diapositivas) :$$bbyn. y col.";
+
+            case BN:
+            default:
+                return "300   L $$a" + cantItems + " sobres (negativos flexibles) :$$bbyn.";
+        }
     }
 
     private void agregarCamposControlOriginales(List<String> salida, String registroOriginal, RegistroParaActualizar rpa) {
@@ -147,12 +215,6 @@ public class RegistroCompletoCOM2Builder {
     }
 
     private String campo008Grupal(List<String> fechas) {
-        /*
-         * Replica la intención de Keyboard.carga008Grupal:
-         * - sin fechas: plantilla aproximada
-         * - una fecha o todas iguales: s + fecha1
-         * - varias fechas: k + menor/mayor
-         */
         if (fechas == null || fechas.isEmpty()) {
             return "008   L 191212s197^^^^^^^^^^^^^^^^^^^^knspa^^";
         }
@@ -196,14 +258,6 @@ public class RegistroCompletoCOM2Builder {
         }
 
         return "260   L $$c" + menor + "-" + mayor + ".";
-    }
-
-    private String campo300Grupal(int cantItems, boolean color) {
-        if (color) {
-            return "300   L $$a" + cantItems + " sobres (diapositivas) :$$bcol.";
-        }
-
-        return "300   L $$a" + cantItems + " sobres (negativos flexibles) :$$bbyn.";
     }
 
     private String campo500Fotografos(List<String> fotografos) {
@@ -255,6 +309,10 @@ public class RegistroCompletoCOM2Builder {
                 continue;
             }
 
+            /*
+             * Importante: NO trim en indicadores.
+             * " 4" debe conservar el espacio.
+             */
             String indicadores = normalizarIndicadores(t[0]);
             String contenido = normalizarContenidoConSubcampoA(valor(t[1]));
 
@@ -269,11 +327,6 @@ public class RegistroCompletoCOM2Builder {
     private String normalizarIndicadores(String indicadores) {
         String ind = indicadores == null ? "" : indicadores;
 
-        /*
-         * Ojo: NO hacer trim().
-         * En MARC/ALEPH el espacio puede ser indicador real.
-         * Ejemplo correcto: " 4" para 650 segundo indicador 4.
-         */
         if (ind.length() > 2) {
             ind = ind.substring(0, 2);
         }
@@ -299,8 +352,48 @@ public class RegistroCompletoCOM2Builder {
         return "$$a" + limpio;
     }
 
+    private String normalizarSubcampoA(String contenido) {
+        String limpio = valor(contenido);
+
+        if (limpio.equals("")) {
+            return "";
+        }
+
+        if (limpio.startsWith("$$")) {
+            return limpio;
+        }
+
+        return "$$a" + limpio;
+    }
+
+    private int contarSobresTotales(String registroOriginal, List<String[]> inventariosNuevos) {
+        int total = 0;
+
+        if (registroOriginal != null) {
+            String[] lineas = registroOriginal.split("\\r?\\n");
+
+            for (String linea : lineas) {
+                String sinSys = quitarSys(linea);
+
+                if (sinSys.startsWith("Z30")) {
+                    total++;
+                }
+            }
+        }
+
+        if (inventariosNuevos != null) {
+            total += inventariosNuevos.size();
+        }
+
+        return total;
+    }
+
     private List<String> limpiarAnios(List<String> fechas) {
         List<String> salida = new ArrayList<>();
+
+        if (fechas == null) {
+            return salida;
+        }
 
         for (String f : fechas) {
             String limpio = valor(f);
@@ -324,17 +417,32 @@ public class RegistroCompletoCOM2Builder {
         return res.get(0)[0];
     }
 
+    private String extraerCampoOriginal(String registroOriginal, String campoBuscado) {
+        if (registroOriginal == null || registroOriginal.equals("")) {
+            return "";
+        }
+
+        String[] lineas = registroOriginal.split("\\r?\\n");
+
+        for (String linea : lineas) {
+            String sinSys = quitarSys(linea);
+
+            if (sinSys.startsWith(campoBuscado)) {
+                return sinSys;
+            }
+        }
+
+        return "";
+    }
+
     private String quitarSys(String linea) {
         if (linea == null) {
             return "";
         }
 
-        /*
-         * Las líneas en tabla registros suelen venir:
-         * 001526189 24500 L ...
-         * El ALEPH_TAG que pegamos no lleva SYS.
-         */
-        if (linea.length() > 10 && linea.substring(0, 9).matches("\\d{9}") && linea.charAt(9) == ' ') {
+        if (linea.length() > 10
+                && linea.substring(0, 9).matches("\\d{9}")
+                && linea.charAt(9) == ' ') {
             return linea.substring(10);
         }
 
@@ -378,26 +486,19 @@ public class RegistroCompletoCOM2Builder {
 
         return valor.replace("'", "''");
     }
-    
-    private int contarSobresTotales(String registroOriginal, List<String[]> inventariosNuevos) {
-        int total = 0;
 
-        if (registroOriginal != null) {
-            String[] lineas = registroOriginal.split("\\r?\\n");
-
-            for (String linea : lineas) {
-                String sinSys = quitarSys(linea);
-
-                if (sinSys.startsWith("Z30")) {
-                    total++;
-                }
-            }
+    private String normalizarTexto(String texto) {
+        if (texto == null) {
+            return "";
         }
 
-        if (inventariosNuevos != null) {
-            total += inventariosNuevos.size();
-        }
-
-        return total;
+        return texto
+                .toLowerCase()
+                .replace("á", "a")
+                .replace("é", "e")
+                .replace("í", "i")
+                .replace("ó", "o")
+                .replace("ú", "u")
+                .replace("ü", "u");
     }
 }

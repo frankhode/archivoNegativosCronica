@@ -5,7 +5,6 @@ import java.util.logging.Logger;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ToggleButton;
-import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
 /**
@@ -16,6 +15,12 @@ import javafx.scene.layout.VBox;
  * 2. REG GRU: usa exactamente COMregGrupal original.
  * 3. UPD AUTO: punto nuevo de trabajo.
  * 4. Se descarta UPD MANUAL y cualquier función no desarrollada.
+ *
+ * COM2:
+ * - mantiene vivo botoneraPlayer para que los atajos que hacen fire()
+ *   sobre sus botones sigan funcionando;
+ * - pero no lo agrega al layout, así no ocupa espacio abajo;
+ * - el trabajo visual queda concentrado en botoneraProgramas + resumen.
  */
 public class COM2pro extends COM {
 
@@ -30,52 +35,38 @@ public class COM2pro extends COM {
 
         prepararVentanaCOM2();
         prepararBotoneraCOM2();
+        ocultarBotoneraInferiorCOM2();
         prepararLayoutCOM2();
-        corregirBotonReducirCOM2();
         mostrarInicio();
     }
-    
-    private void corregirBotonReducirCOM2() {
-        if (!(scene.getRoot() instanceof VBox)) {
+
+    /**
+     * El COM viejo necesita botoneraPlayer porque sus flujos registran acciones
+     * sobre esos botones y algunos atajos hacen .fire().
+     *
+     * En COM2 la dejamos existente, pero fuera del layout.
+     */
+    private void ocultarBotoneraInferiorCOM2() {
+        if (botoneraPlayer == null) {
             return;
         }
 
-        VBox mainLayout = (VBox) scene.getRoot();
-
-        for (javafx.scene.Node n : botoneraPlayer.getChildren()) {
-            if (!(n instanceof Button)) {
-                continue;
-            }
-
-            Button btn = (Button) n;
-
-            if (!btn.getText().equals("Reducir") && !btn.getText().equals("Restaurar")) {
-                continue;
-            }
-
-            btn.setOnAction(e -> {
-                if (mainLayout.getChildren().contains(resumen)) {
-                    mainLayout.getChildren().clear();
-                    mainLayout.getChildren().addAll(botoneraProgramas, botoneraPlayer);
-
-                    ventana.setWidth(botoneraPlayer.getWidth() + 90);
-                    ventana.setHeight(botoneraProgramas.getHeight() + botoneraPlayer.getHeight() + 45);
-
-                    btn.setText("Restaurar");
-                } else {
-                    prepararLayoutCOM2();
-
-                    ventana.setWidth(350);
-                    ventana.setHeight(520);
-
-                    btn.setText("Reducir");
-                }
-            });
-
-            break;
-        }
+        botoneraPlayer.setVisible(false);
+        botoneraPlayer.setManaged(false);
+        botoneraPlayer.setMinHeight(0);
+        botoneraPlayer.setPrefHeight(0);
+        botoneraPlayer.setMaxHeight(0);
     }
-    
+
+    /**
+     * Ya no usamos el botón Reducir/Restaurar de la botonera inferior.
+     * Dejo el método como no-op por compatibilidad conceptual con versiones
+     * anteriores de COM2pro.
+     */
+    private void corregirBotonReducirCOM2() {
+        ocultarBotoneraInferiorCOM2();
+    }
+
     private void prepararLayoutCOM2() {
         if (!(scene.getRoot() instanceof VBox)) {
             return;
@@ -86,23 +77,22 @@ public class COM2pro extends COM {
         mainLayout.getChildren().clear();
 
         /*
-         * COM2 definitivo:
-         *   1. botones principales siempre arriba
-         *   2. panel central crece
-         *   3. botonera player siempre abajo
+         * COM2 sin botonera inferior:
+         *   1. botones principales arriba
+         *   2. panel central crece y ocupa todo el resto
+         *
+         * botoneraPlayer sigue existiendo, pero no se agrega.
          */
         mainLayout.getChildren().addAll(
                 botoneraProgramas,
-                resumen,
-                botoneraPlayer
+                resumen
         );
 
-        mainLayout.setSpacing(4);
-        mainLayout.setPadding(new javafx.geometry.Insets(6));
+        mainLayout.setSpacing(3);
+        mainLayout.setPadding(new javafx.geometry.Insets(5));
 
         VBox.setVgrow(botoneraProgramas, javafx.scene.layout.Priority.NEVER);
         VBox.setVgrow(resumen, javafx.scene.layout.Priority.ALWAYS);
-        VBox.setVgrow(botoneraPlayer, javafx.scene.layout.Priority.NEVER);
 
         botoneraProgramas.setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
         botoneraProgramas.setMaxHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
@@ -112,10 +102,9 @@ public class COM2pro extends COM {
         resumen.setMaxWidth(Double.MAX_VALUE);
         resumen.setFillWidth(true);
 
-        botoneraPlayer.setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
-        botoneraPlayer.setMaxHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
+        ocultarBotoneraInferiorCOM2();
     }
-    
+
     public void restaurarLayoutCOM2() {
         prepararLayoutCOM2();
     }
@@ -211,6 +200,13 @@ public class COM2pro extends COM {
              */
             new COMregIndi(this);
 
+            /*
+             * COMregIndi original puede volver a mostrar botoneraPlayer.
+             * La escondemos otra vez para que COM2 siga sin botonera inferior.
+             */
+            ocultarBotoneraInferiorCOM2();
+            prepararLayoutCOM2();
+
         } catch (InterruptedException ex) {
             Logger.getLogger(COM2pro.class.getName()).log(Level.SEVERE, null, ex);
             mostrarMensaje("Error iniciando REG IND: " + ex.getMessage());
@@ -225,6 +221,12 @@ public class COM2pro extends COM {
              * Misma clase original.
              */
             new COMregGrupal(this);
+
+            /*
+             * COMregGrupal original puede volver a mostrar botoneraPlayer.
+             */
+            ocultarBotoneraInferiorCOM2();
+            prepararLayoutCOM2();
 
         } catch (InterruptedException ex) {
             Logger.getLogger(COM2pro.class.getName()).log(Level.SEVERE, null, ex);
@@ -243,9 +245,9 @@ public class COM2pro extends COM {
              */
             new COM2regActualizarPro(this, cron);
 
-        } catch (InterruptedException ex) {
-            Logger.getLogger(COM2pro.class.getName()).log(Level.SEVERE, null, ex);
-            mostrarMensaje("Error iniciando UPD AUTO COM2: " + ex.getMessage());
+            ocultarBotoneraInferiorCOM2();
+            prepararLayoutCOM2();
+
         } catch (Exception ex) {
             Logger.getLogger(COM2pro.class.getName()).log(Level.SEVERE, null, ex);
             mostrarMensaje("Error iniciando UPD AUTO COM2: " + ex.getMessage());
@@ -262,9 +264,7 @@ public class COM2pro extends COM {
             resumen.getChildren().clear();
         }
 
-        if (botoneraPlayer != null) {
-            botoneraPlayer.setVisible(false);
-        }
+        ocultarBotoneraInferiorCOM2();
 
         if (scene != null) {
             scene.setOnKeyPressed(null);
@@ -273,11 +273,11 @@ public class COM2pro extends COM {
 
     private void mostrarInicio() {
         mostrarMensaje(
-                "COM2pro listo.\n\n"
-                + "REG IND: usa el flujo original.\n"
-                + "REG GRU: usa el flujo original.\n"
-                + "UPD AUTO: flujo nuevo en desarrollo.\n\n"
-                + "UPD MANUAL fue descartado."
+                "COM2pro listo.\n"
+                + "REG IND: flujo original.\n"
+                + "REG GRU: flujo original.\n"
+                + "UPD AUTO: flujo nuevo.\n"
+                + "Botonera inferior oculta; usar atajos de teclado."
         );
     }
 
@@ -307,7 +307,7 @@ public class COM2pro extends COM {
 
         ventana.setAlwaysOnTop(estabaAlwaysOnTop);
     }
-    
+
     private void prepararVentanaCOM2() {
         ventana.setWidth(350);
         ventana.setHeight(520);
