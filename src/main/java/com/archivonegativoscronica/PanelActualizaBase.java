@@ -578,14 +578,11 @@ class PanelActualizaBase {
 
                     if (c505.size() > 0) {
                         for (String campo : c505) {
-                            String[] titulos = campo.split("\\s+--\\s+");
+                            String[] titulos = limpiarTitulo505(campo).split("\\s+--\\s*");
 
                             for (String tit : titulos) {
-                                tit = tit.trim();
+                                tit = limpiarTitulo505(tit);
 
-                                while (tit.startsWith("--")) {
-                                    tit = tit.substring(2).trim();
-                                }
                                 if (tit.isEmpty()) {
                                     continue;
                                 }
@@ -614,7 +611,7 @@ class PanelActualizaBase {
                                 }
 
                                 try {
-                                    titulo = tit.substring(nroA.length() + 2).trim();
+                                    titulo = limpiarTitulo505(tit.substring(nroA.length() + 2));
                                 } catch (Exception e) {
                                     System.out.println("No se pudo extraer título - SYS: " + sys + " / TIT: " + tit);
                                     System.out.println(reg.getRegistro());
@@ -743,6 +740,19 @@ class PanelActualizaBase {
 
         cron.conn.close();
         cron.conectarMySQL() ;
+    }
+    
+    private String limpiarTitulo505(String s) {
+        if (s == null) {
+            return "";
+        }
+
+        return s
+                .replace('\u00A0', ' ')
+                .replaceAll("\\s+", " ")
+                .replaceAll("^(--\\s*)+", "")
+                .replaceAll("(\\s*--\\s*\\.?\\s*)+$", "")
+                .trim();
     }
 
 }

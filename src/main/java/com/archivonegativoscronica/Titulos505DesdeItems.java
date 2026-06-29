@@ -59,7 +59,13 @@ public class Titulos505DesdeItems {
                 continue;
             }
 
-            String parte = titulo.trim() + " -- ";
+            String tituloLimpio = limpiar(titulo);
+
+            if (tituloLimpio.equals("")) {
+                continue;
+            }
+
+            String parte = tituloLimpio + " -- ";
 
             if (campoActual.length() + parte.length() >= LIMITE_CAMPO_505
                     && campoActual.length() > nuevoCampo505(sys).length()) {
@@ -218,6 +224,12 @@ public class Titulos505DesdeItems {
         if (s == null) {
             return "";
         }
-        return s.trim();
+
+        return s
+                .replace('\u00A0', ' ')
+                .replaceAll("\\s+", " ")
+                .replaceAll("^(--\\s*)+", "")
+                .replaceAll("(\\s*--\\s*\\.?\\s*)+$", "")
+                .trim();
     }
 }
