@@ -272,7 +272,7 @@ public class Generador505Seguro {
             String agregado = actual.length() == 0 ? titulo : " -- " + titulo;
 
             if (actual.length() > 0 && actual.length() + agregado.length() >= LIMITE_CAMPO_505) {
-                resultado.addCampo505(campo505(actual.toString()));
+                resultado.addCampo505(campo505(actual.toString(), false)); // intermedio
                 actual = new StringBuilder(titulo);
             } else {
                 actual.append(agregado);
@@ -280,15 +280,23 @@ public class Generador505Seguro {
         }
 
         if (actual.length() > 0) {
-            resultado.addCampo505(campo505(actual.toString()));
+            resultado.addCampo505(campo505(actual.toString(), true)); // último
         }
     }
 
-    private String campo505(String contenido) {
+    private String campo505(String contenido, boolean ultimoCampo) {
         String limpio = limpiarTitulo505(contenido);
 
-        if (!limpio.endsWith(".")) {
-            limpio = limpio + ".";
+        if (limpio.equals("")) {
+            return "";
+        }
+
+        if (ultimoCampo) {
+            if (!limpio.endsWith(".")) {
+                limpio = limpio + ".";
+            }
+        } else {
+            limpio = limpio + " --";
         }
 
         return "5050  L $$a" + limpio;
