@@ -69,7 +69,7 @@ public class Titulos505DesdeItems {
 
             if (campoActual.length() + parte.length() >= LIMITE_CAMPO_505
                     && campoActual.length() > nuevoCampo505(sys).length()) {
-                cerrarYAgregarCampo(campos, campoActual);
+                cerrarYAgregarCampo(campos, campoActual, true);
                 campoActual = nuevoCampo505(sys);
             }
 
@@ -77,7 +77,7 @@ public class Titulos505DesdeItems {
         }
 
         if (campoActual.length() > nuevoCampo505(sys).length()) {
-            cerrarYAgregarCampo(campos, campoActual);
+            cerrarYAgregarCampo(campos, campoActual, false);
         }
 
         return campos;
@@ -199,15 +199,20 @@ public class Titulos505DesdeItems {
         return new StringBuilder().append(sys).append(" 5058  L $$a");
     }
 
-    private void cerrarYAgregarCampo(List<String> campos, StringBuilder campo) {
-        String texto = campo.toString();
+    private void cerrarYAgregarCampo(List<String> campos, StringBuilder campo, boolean continua) {
+        String texto = campo.toString().trim();
 
-        if (texto.endsWith(" -- ")) {
-            texto = texto.substring(0, texto.length() - 4);
-        }
+        // Sacamos cualquier separador final para controlar acá el cierre correcto.
+        texto = texto.replaceAll("(\\s*--\\s*)+$", "").trim();
 
-        if (!texto.endsWith(".")) {
-            texto = texto + ".";
+        if (continua) {
+            // Si hay otro 505 después, Aleph visualiza mejor con separador final.
+            texto = texto + " --";
+        } else {
+            // Solo el último 505 cierra con punto.
+            if (!texto.endsWith(".")) {
+                texto = texto + ".";
+            }
         }
 
         campos.add(texto);
