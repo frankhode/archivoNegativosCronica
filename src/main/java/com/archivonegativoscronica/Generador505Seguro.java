@@ -10,6 +10,8 @@ import java.util.Map;
 
 public class Generador505Seguro {
 
+    private static final int LIMITE_CAMPO_505 = 1300;
+
     private final Funciones cron;
 
     public Generador505Seguro(Funciones cron) {
@@ -28,11 +30,6 @@ public class Generador505Seguro {
 
         HashSet<String> nroAsUsados = new HashSet<>();
 
-        /*
-         * 1. Para cada item actual:
-         *    - si hay título 505 existente con mismo nroA, conservarlo.
-         *    - si no hay, resolver desde inventario por barcode.
-         */
         for (String nroA : itemsActuales.keySet()) {
             ItemActual505 item = itemsActuales.get(nroA);
 
@@ -54,9 +51,6 @@ public class Generador505Seguro {
             }
         }
 
-        /*
-         * 2. Agregar inventarios nuevos pendientes.
-         */
         if (inventariosNuevos != null) {
             for (String[] reg : inventariosNuevos) {
                 String nroA = nroADesdeInventario(reg);
@@ -103,11 +97,9 @@ public class Generador505Seguro {
             String nroA = normalizarNroA(extraerSubcampo(linea, "h"));
             String barcode = extraerSubcampo(linea, "5");
 
-            if (nroA.equals("")) {
-                continue;
+            if (!nroA.equals("")) {
+                salida.put(nroA, new ItemActual505(nroA, barcode));
             }
-
-            salida.put(nroA, new ItemActual505(nroA, barcode));
         }
 
         return salida;
@@ -122,24 +114,25 @@ public class Generador505Seguro {
         List<String> titulos505 = extraerTitulosDe505(registroOriginal);
 
         for (String titulo : titulos505) {
-            String nroA = normalizarNroA(extraerNroADesdeTitulo505(titulo));
+            String tituloLimpio = limpiarTitulo505(titulo);
+            String nroA = normalizarNroA(extraerNroADesdeTitulo505(tituloLimpio));
 
             if (nroA.equals("")) {
-                resultado.addMensaje("505: título descartado porque no se pudo reconocer nroA: " + titulo);
+                resultado.addMensaje("505: título descartado porque no se pudo reconocer nroA: " + tituloLimpio);
                 continue;
             }
 
             if (!itemsActuales.containsKey(nroA)) {
-                resultado.addMensaje("505: título descartado porque no hay item actual con nroA " + nroA + ": " + titulo);
+                resultado.addMensaje("505: título descartado porque no hay item actual con nroA " + nroA + ": " + tituloLimpio);
                 continue;
             }
 
             if (salida.containsKey(nroA)) {
-                resultado.addMensaje("505: título duplicado descartado para nroA " + nroA + ": " + titulo);
+                resultado.addMensaje("505: título duplicado descartado para nroA " + nroA + ": " + tituloLimpio);
                 continue;
             }
 
-            salida.put(nroA, limpiarPuntoFinal(titulo));
+            salida.put(nroA, tituloLimpio);
         }
 
         return salida;
@@ -165,12 +158,18 @@ public class Generador505Seguro {
                 continue;
             }
 
-            String contenido = linea.substring(pos + 3).trim();
+            String contenido = limpiarTitulo505(linea.substring(pos + 3));
 
-            String[] partes = contenido.split("\\s+--\\s+");
+            /*
+             * El separador 505 histórico es " -- ". En registros viejos puede
+             * quedar pegado al final del campo cuando una 505 se parte en varias
+             * líneas. Por eso el split acepta falta de espacio posterior y cada
+             * fragmento se vuelve a limpiar.
+             */
+            String[] partes = contenido.split("\\s+--\\s*");
 
             for (String parte : partes) {
-                String titulo = limpiarPuntoFinal(parte);
+                String titulo = limpiarTitulo505(parte);
 
                 if (!titulo.equals("")) {
                     salida.add(titulo);
@@ -186,7 +185,7 @@ public class Generador505Seguro {
             return "";
         }
 
-        String limpio = titulo.trim();
+        String limpio = limpiarTitulo505(titulo);
         int posPunto = limpio.indexOf(".");
 
         if (posPunto < 0) {
@@ -218,8 +217,12 @@ public class Generador505Seguro {
 
         String barcode = valorSeguro(reg, 0);
         String nroA = valorSeguro(reg, 1);
-        String tituloBase = valorSeguro(reg, 5);
+        String tituloBase = limpiarTitulo505(valorSeguro(reg, 5));
         String fecha = valorSeguro(reg, 6);
+
+        if (tituloBase.equals("")) {
+            return "";
+        }
 
         String titulo;
 
@@ -233,7 +236,7 @@ public class Generador505Seguro {
             titulo = titulo + ", " + RegistrosParaAleph.fechaFormateada(fecha);
         }
 
-        return titulo.trim();
+        return limpiarTitulo505(titulo);
     }
 
     private String nroADesdeInventario(String[] reg) {
@@ -260,7 +263,7 @@ public class Generador505Seguro {
         StringBuilder actual = new StringBuilder();
 
         for (String tituloRaw : titulos) {
-            String titulo = limpiarPuntoFinal(tituloRaw);
+            String titulo = limpiarTitulo505(tituloRaw);
 
             if (titulo.equals("")) {
                 continue;
@@ -268,8 +271,8 @@ public class Generador505Seguro {
 
             String agregado = actual.length() == 0 ? titulo : " -- " + titulo;
 
-            if (actual.length() > 0 && actual.length() + agregado.length() >= 1300) {
-                resultado.addCampo505("5050  L $$a" + actual.toString() + " --");
+            if (actual.length() > 0 && actual.length() + agregado.length() >= LIMITE_CAMPO_505) {
+                resultado.addCampo505(campo505(actual.toString()));
                 actual = new StringBuilder(titulo);
             } else {
                 actual.append(agregado);
@@ -277,8 +280,18 @@ public class Generador505Seguro {
         }
 
         if (actual.length() > 0) {
-            resultado.addCampo505("5050  L $$a" + actual.toString() + ".");
+            resultado.addCampo505(campo505(actual.toString()));
         }
+    }
+
+    private String campo505(String contenido) {
+        String limpio = limpiarTitulo505(contenido);
+
+        if (!limpio.endsWith(".")) {
+            limpio = limpio + ".";
+        }
+
+        return "5050  L $$a" + limpio;
     }
 
     private void ordenarPorFecha(List<String> titulos) {
@@ -321,13 +334,14 @@ public class Generador505Seguro {
             return "";
         }
 
-        int pos = titulo.lastIndexOf(",");
+        String limpio = limpiarTitulo505(titulo);
+        int pos = limpio.lastIndexOf(",");
 
-        if (pos < 0 || pos + 1 >= titulo.length()) {
+        if (pos < 0 || pos + 1 >= limpio.length()) {
             return "";
         }
 
-        return titulo.substring(pos + 1).trim();
+        return limpio.substring(pos + 1).trim();
     }
 
     private String normalizarFecha(String fecha) {
@@ -404,12 +418,27 @@ public class Generador505Seguro {
         return limpio.trim();
     }
 
-    private String limpiarPuntoFinal(String valor) {
+    private String limpiarTitulo505(String valor) {
         if (valor == null) {
             return "";
         }
 
-        String limpio = valor.trim();
+        String limpio = valor
+                .replace('\u00A0', ' ')
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        while (limpio.startsWith("--")) {
+            limpio = limpio.substring(2).trim();
+        }
+
+        while (limpio.endsWith(".")) {
+            limpio = limpio.substring(0, limpio.length() - 1).trim();
+        }
+
+        while (limpio.endsWith("--")) {
+            limpio = limpio.substring(0, limpio.length() - 2).trim();
+        }
 
         while (limpio.endsWith(".")) {
             limpio = limpio.substring(0, limpio.length() - 1).trim();
@@ -423,7 +452,7 @@ public class Generador505Seguro {
             return "";
         }
 
-        String limpio = valor.trim().replaceAll("\\s+", " ");
+        String limpio = limpiarTitulo505(valor).replaceAll("\\s+", " ");
         limpio = Normalizer.normalize(limpio, Normalizer.Form.NFD);
         limpio = limpio.replaceAll("\\p{M}", "");
 
