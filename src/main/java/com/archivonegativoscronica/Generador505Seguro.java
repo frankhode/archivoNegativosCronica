@@ -428,6 +428,8 @@ public class Generador505Seguro {
                 .replaceAll("\\s+", " ")
                 .trim();
 
+        limpio = normalizarSeparadoresRepetidos(limpio);
+
         while (limpio.startsWith("--")) {
             limpio = limpio.substring(2).trim();
         }
@@ -442,6 +444,27 @@ public class Generador505Seguro {
 
         while (limpio.endsWith(".")) {
             limpio = limpio.substring(0, limpio.length() - 1).trim();
+        }
+
+        return normalizarSeparadoresRepetidos(limpio).trim();
+    }
+
+    private String normalizarSeparadoresRepetidos(String valor) {
+        if (valor == null) {
+            return "";
+        }
+
+        String limpio = valor
+                .replace('\u00A0', ' ')
+                .replaceAll("\\s+", " ")
+                .trim();
+
+        while (limpio.contains(" -- -- ")) {
+            limpio = limpio.replace(" -- -- ", " -- ");
+        }
+
+        while (limpio.matches(".*\\s+--\\s+--\\s+.*")) {
+            limpio = limpio.replaceAll("\\s+--\\s+--\\s+", " -- ");
         }
 
         return limpio.trim();
